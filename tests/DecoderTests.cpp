@@ -4,6 +4,7 @@
  */
 
 #include "DecoderFactory.h"
+#include "VideoFilters.h"
 #include <glog/logging.h>
 #include <gtest/gtest.h>
 #include <iostream>
@@ -469,6 +470,74 @@ TEST_F(DecoderTestFixture, AppliesFrameProcessors)
             for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(100)); ++i) {
                 EXPECT_EQ(processedFrame.data[i], static_cast<uint8_t>(255 - originalPixels[i]));
             }
+            decoder->close();
+        }
+    }
+}
+
+// 13. OpenCV post-processing library check
+TEST_F(DecoderTestFixture, AppliesOpenCVFilters)
+{
+    // FFmpeg with GaussianBlurFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            // Decode normal frame first to verify it changes after blur
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            // Register the OpenCV Gaussian Blur Filter
+            auto blurFilter = std::make_shared<GaussianBlurFilter>(15);
+            decoder->addFrameProcessor(blurFilter);
+
+            // Seek back, decode, and compare pixels
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // Blur alters pixels. Ensure they are not identical
+            bool identical = true;
+            for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(100)); ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // GStreamer with MirrorFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            // Register the Mirror Filter (horizontal)
+            auto mirrorFilter = std::make_shared<MirrorFilter>(true);
+            decoder->addFrameProcessor(mirrorFilter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // The first row of pixels of mirrored image matches the reversed first row of original image
+            // Width is 320, each pixel is 3 bytes (960 bytes stride)
+            // Original pixel at x=0 should match mirrored pixel at x=319 (i.e. byte index 957, 958, 959)
+            EXPECT_EQ(processedFrame.data[0], originalPixels[957]);
+            EXPECT_EQ(processedFrame.data[1], originalPixels[958]);
+            EXPECT_EQ(processedFrame.data[2], originalPixels[959]);
+
             decoder->close();
         }
     }

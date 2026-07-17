@@ -61,6 +61,7 @@ endif()
 
 # Add modular components via subdirectories
 add_subdirectory(lib)
+add_subdirectory(filters)
 
 if(BUILD_CLI)
     add_subdirectory(cli)
@@ -79,6 +80,7 @@ find_program(CLANG_FORMAT_BIN NAMES clang-format)
 if(CLANG_FORMAT_BIN)
     file(GLOB_RECURSE ALL_SOURCE_FILES
         "lib/*.cpp" "lib/*.h"
+        "filters/*.cpp" "filters/*.h"
         "cli/*.cpp"
         "gui/*.cpp" "gui/*.h"
         "tests/*.cpp"

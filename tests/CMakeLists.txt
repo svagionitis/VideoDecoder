@@ -13,6 +13,7 @@ target_compile_definitions(VideoDecoderTests PRIVATE TEST_INPUT_PATH="${CMAKE_CU
 
 target_link_libraries(VideoDecoderTests PRIVATE
     VideoDecoder
+    VideoFilters
     GTest::gtest
     GTest::gtest_main
 )
