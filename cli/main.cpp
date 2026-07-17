@@ -4,6 +4,7 @@
  */
 
 #include "DecoderFactory.h"
+#define SDL_MAIN_HANDLED
 #include <SDL2/SDL.h>
 #include <chrono>
 #include <cstring>
@@ -23,6 +24,21 @@
 #include <unistd.h>
 #else
 #include <conio.h>
+#include <stdlib.h>
+
+#ifdef _MSC_VER
+static int setenv(const char* name, const char* value, int overwrite)
+{
+    (void)overwrite;
+    return _putenv_s(name, value);
+}
+#endif
+
+class TerminalRawMode {
+public:
+    TerminalRawMode() = default;
+    ~TerminalRawMode() = default;
+};
 #endif
 
 /**
@@ -292,13 +308,13 @@ void renderBraille(const uint8_t* frameData, int width, int height, int cols, in
 
             uint8_t r_draw = 0, g_draw = 0, b_draw = 0;
             if (activeCount > 0) {
-                r_draw = actR / activeCount;
-                g_draw = actG / activeCount;
-                b_draw = actB / activeCount;
+                r_draw = static_cast<uint8_t>(actR / activeCount);
+                g_draw = static_cast<uint8_t>(actG / activeCount);
+                b_draw = static_cast<uint8_t>(actB / activeCount);
             } else {
-                r_draw = r_sum / 8;
-                g_draw = g_sum / 8;
-                b_draw = b_sum / 8;
+                r_draw = static_cast<uint8_t>(r_sum / 8);
+                g_draw = static_cast<uint8_t>(g_sum / 8);
+                b_draw = static_cast<uint8_t>(b_sum / 8);
             }
 
             // UTF-8 encode Unicode Braille range U+2800 + offset (3-byte sequence)
