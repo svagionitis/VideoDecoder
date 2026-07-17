@@ -161,3 +161,67 @@ TEST_F(DecoderTestFixture, RetrievesVideoMetadata)
         }
     }
 }
+
+// 6. Latency/Performance statistics check
+TEST_F(DecoderTestFixture, MeasuresDecoderLatency)
+{
+    // FFmpeg performance test
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            auto statsBefore = decoder->getPerformanceStats();
+            EXPECT_GT(statsBefore.initializationTimeMs, 0.0);
+            EXPECT_EQ(statsBefore.totalDecodedFrames, 0);
+            EXPECT_DOUBLE_EQ(statsBefore.averageDecodeTimeMs, 0.0);
+
+            int framesDecoded = 0;
+            while (decoder->decodeNextFrame()) {
+                framesDecoded++;
+                auto frame = decoder->getRawFrameData();
+                EXPECT_GT(frame.decodeTimeMs, 0.0);
+                if (framesDecoded >= 5) {
+                    break;
+                }
+            }
+
+            auto statsAfter = decoder->getPerformanceStats();
+            EXPECT_EQ(statsAfter.totalDecodedFrames, static_cast<uint64_t>(framesDecoded));
+            EXPECT_GT(statsAfter.averageDecodeTimeMs, 0.0);
+
+            decoder->close();
+        }
+    }
+
+    // GStreamer performance test
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            auto statsBefore = decoder->getPerformanceStats();
+            EXPECT_GT(statsBefore.initializationTimeMs, 0.0);
+            EXPECT_EQ(statsBefore.totalDecodedFrames, 0);
+            EXPECT_DOUBLE_EQ(statsBefore.averageDecodeTimeMs, 0.0);
+
+            int framesDecoded = 0;
+            while (decoder->decodeNextFrame()) {
+                framesDecoded++;
+                auto frame = decoder->getRawFrameData();
+                EXPECT_GT(frame.decodeTimeMs, 0.0);
+                if (framesDecoded >= 5) {
+                    break;
+                }
+            }
+
+            auto statsAfter = decoder->getPerformanceStats();
+            EXPECT_EQ(statsAfter.totalDecodedFrames, static_cast<uint64_t>(framesDecoded));
+            EXPECT_GT(statsAfter.averageDecodeTimeMs, 0.0);
+
+            decoder->close();
+        }
+    }
+}

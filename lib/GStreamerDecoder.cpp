@@ -5,6 +5,7 @@
 
 #include "GStreamerDecoder.h"
 #include <algorithm>
+#include <chrono>
 #include <cstring>
 #include <glog/logging.h>
 #include <gst/video/video.h>
@@ -40,6 +41,7 @@ void GStreamerDecoder::initGStreamer()
 bool GStreamerDecoder::initialize(std::string_view filePath)
 {
     close();
+    auto start = std::chrono::high_resolution_clock::now();
 
     // Escape file path for pipeline construction
     std::string escapedPath;
@@ -180,9 +182,13 @@ bool GStreamerDecoder::initialize(std::string_view filePath)
     m_reachedEof = false;
     m_isInitialized = true;
 
+    auto end = std::chrono::high_resolution_clock::now();
+    m_initTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
+
     LOG(INFO) << "GStreamer: Pipeline successfully initialized and pre-rolled for file: " << filePath
               << " | Resolution: " << m_width << "x" << m_height << " | Frame Rate: " << m_frameRate
-              << " FPS | Duration: " << m_duration << "s | Codec: " << m_codecName;
+              << " FPS | Duration: " << m_duration << "s | Codec: " << m_codecName << " | Init Time: " << m_initTimeMs
+              << " ms";
     return true;
 }
 
@@ -225,6 +231,8 @@ bool GStreamerDecoder::decodeNextFrame()
         m_reachedEof = true;
         return false;
     }
+
+    auto decodeStart = std::chrono::high_resolution_clock::now();
 
     // Wrap sample in RAII unique_ptr
     GstSamplePtr sample(sampleRaw);
@@ -289,6 +297,11 @@ bool GStreamerDecoder::decodeNextFrame()
     }
     m_timestamp = pts;
 
+    auto decodeEnd = std::chrono::high_resolution_clock::now();
+    m_lastDecodeTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - decodeStart).count();
+    m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+    m_decodedFramesCount++;
+
     return true;
 }
 
@@ -303,6 +316,7 @@ FrameInfo GStreamerDecoder::getRawFrameData() const
     info.height = m_height;
     info.size = m_rgbBuffer.size();
     info.timestamp = m_timestamp;
+    info.decodeTimeMs = m_lastDecodeTimeMs;
     return info;
 }
 
@@ -321,6 +335,10 @@ void GStreamerDecoder::close()
     m_frameRate = 0.0;
     m_duration = 0.0;
     m_codecName.clear();
+    m_initTimeMs = 0.0;
+    m_lastDecodeTimeMs = 0.0;
+    m_totalDecodeTimeMs = 0.0;
+    m_decodedFramesCount = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -334,6 +352,19 @@ VideoMetadata GStreamerDecoder::getVideoMetadata() const
     meta.duration = m_duration;
     meta.codecName = m_codecName;
     return meta;
+}
+
+DecoderPerformanceStats GStreamerDecoder::getPerformanceStats() const
+{
+    DecoderPerformanceStats stats;
+    stats.initializationTimeMs = m_initTimeMs;
+    stats.totalDecodedFrames = m_decodedFramesCount;
+    if (m_decodedFramesCount > 0) {
+        stats.averageDecodeTimeMs = m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount);
+    } else {
+        stats.averageDecodeTimeMs = 0.0;
+    }
+    return stats;
 }
 
 } // namespace videodecoder

@@ -4,6 +4,7 @@
  */
 
 #include "FFmpegDecoder.h"
+#include <chrono>
 #include <glog/logging.h>
 
 namespace videodecoder {
@@ -21,6 +22,7 @@ FFmpegDecoder::~FFmpegDecoder()
 bool FFmpegDecoder::initialize(std::string_view filePath)
 {
     close();
+    auto start = std::chrono::high_resolution_clock::now();
 
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
@@ -104,9 +106,12 @@ bool FFmpegDecoder::initialize(std::string_view filePath)
     m_reachedEof = false;
     m_isInitialized = true;
 
+    auto end = std::chrono::high_resolution_clock::now();
+    m_initTimeMs = std::chrono::duration<double, std::milli>(end - start).count();
+
     LOG(INFO) << "FFmpeg: Successfully initialized for file: " << filePath << " | Resolution: " << m_width << "x"
               << m_height << " | Frame Rate: " << m_frameRate << " FPS | Duration: " << m_duration
-              << "s | Codec: " << m_codecName;
+              << "s | Codec: " << m_codecName << " | Init Time: " << m_initTimeMs << " ms";
     return true;
 }
 
@@ -116,6 +121,9 @@ bool FFmpegDecoder::decodeNextFrame()
         LOG(ERROR) << "FFmpeg: Cannot decode. Decoder not initialized.";
         return false;
     }
+
+    auto decodeStart = std::chrono::high_resolution_clock::now();
+    double totalReadTimeMs = 0.0;
 
     while (true) {
         // Try to receive a decoded frame from the codec
@@ -140,6 +148,16 @@ bool FFmpegDecoder::decodeNextFrame()
             }
             m_timestamp = pts;
 
+            // Measure end time and save latency statistics
+            auto decodeEnd = std::chrono::high_resolution_clock::now();
+            double totalTimeMs = std::chrono::duration<double, std::milli>(decodeEnd - decodeStart).count();
+            m_lastDecodeTimeMs = totalTimeMs - totalReadTimeMs;
+            if (m_lastDecodeTimeMs < 0.0) {
+                m_lastDecodeTimeMs = 0.0;
+            }
+            m_totalDecodeTimeMs += m_lastDecodeTimeMs;
+            m_decodedFramesCount++;
+
             return true;
         } else if (ret == AVERROR(EAGAIN)) {
             // Decoder needs more input packets
@@ -148,7 +166,11 @@ bool FFmpegDecoder::decodeNextFrame()
                 return false;
             }
 
+            auto readStart = std::chrono::high_resolution_clock::now();
             int readRet = av_read_frame(m_formatCtx.get(), m_packet.get());
+            auto readEnd = std::chrono::high_resolution_clock::now();
+            totalReadTimeMs += std::chrono::duration<double, std::milli>(readEnd - readStart).count();
+
             if (readRet >= 0) {
                 if (m_packet->stream_index == m_videoStreamIndex) {
                     int sendRet = avcodec_send_packet(m_codecCtx.get(), m_packet.get());
@@ -194,6 +216,7 @@ FrameInfo FFmpegDecoder::getRawFrameData() const
     info.height = m_height;
     info.size = m_rgbBuffer.size();
     info.timestamp = m_timestamp;
+    info.decodeTimeMs = m_lastDecodeTimeMs;
     return info;
 }
 
@@ -213,6 +236,10 @@ void FFmpegDecoder::close()
     m_frameRate = 0.0;
     m_duration = 0.0;
     m_codecName.clear();
+    m_initTimeMs = 0.0;
+    m_lastDecodeTimeMs = 0.0;
+    m_totalDecodeTimeMs = 0.0;
+    m_decodedFramesCount = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -226,6 +253,19 @@ VideoMetadata FFmpegDecoder::getVideoMetadata() const
     meta.duration = m_duration;
     meta.codecName = m_codecName;
     return meta;
+}
+
+DecoderPerformanceStats FFmpegDecoder::getPerformanceStats() const
+{
+    DecoderPerformanceStats stats;
+    stats.initializationTimeMs = m_initTimeMs;
+    stats.totalDecodedFrames = m_decodedFramesCount;
+    if (m_decodedFramesCount > 0) {
+        stats.averageDecodeTimeMs = m_totalDecodeTimeMs / static_cast<double>(m_decodedFramesCount);
+    } else {
+        stats.averageDecodeTimeMs = 0.0;
+    }
+    return stats;
 }
 
 bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat srcFormat)

@@ -142,6 +142,7 @@ public:
     bool decodeNextFrame() override;
     FrameInfo getRawFrameData() const override;
     VideoMetadata getVideoMetadata() const override;
+    DecoderPerformanceStats getPerformanceStats() const override;
     void close() override;
 
 private:
@@ -155,6 +156,10 @@ private:
     double m_frameRate = 0.0; ///< Video frame rate (FPS)
     double m_duration = 0.0; ///< Video duration in seconds
     std::string m_codecName; ///< Video codec name
+    double m_initTimeMs = 0.0; ///< Initialization time in milliseconds
+    double m_lastDecodeTimeMs = 0.0; ///< Processing latency of the last decoded frame in milliseconds
+    double m_totalDecodeTimeMs = 0.0; ///< Cumulative processing latency of all frames in milliseconds
+    uint64_t m_decodedFramesCount = 0; ///< Cumulative count of successfully decoded frames
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of stream flag
 

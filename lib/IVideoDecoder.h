@@ -68,6 +68,13 @@ public:
     virtual VideoMetadata getVideoMetadata() const = 0;
 
     /**
+     * @brief Retrieves the runtime performance and latency statistics of the decoder.
+     *
+     * @return DecoderPerformanceStats structure containing initialization and average decode latencies.
+     */
+    virtual DecoderPerformanceStats getPerformanceStats() const = 0;
+
+    /**
      * @brief Closes the video file and releases all allocated decoder resources.
      */
     virtual void close() = 0;

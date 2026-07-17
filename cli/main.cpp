@@ -444,12 +444,14 @@ int main(int argc, char* argv[])
 
     // Retrieve and print video statistics
     auto metadata = decoder->getVideoMetadata();
+    auto stats = decoder->getPerformanceStats();
     LOG(INFO) << "========================================";
     LOG(INFO) << "CLI Client: Video Stream Statistics:";
     LOG(INFO) << "  - Resolution: " << metadata.width << "x" << metadata.height;
     LOG(INFO) << "  - Frame Rate: " << metadata.frameRate << " FPS";
     LOG(INFO) << "  - Duration:   " << metadata.duration << " seconds";
     LOG(INFO) << "  - Codec:      " << metadata.codecName;
+    LOG(INFO) << "  - Init Time:  " << stats.initializationTimeMs << " ms";
     LOG(INFO) << "========================================";
 
     // Initialize raw terminal mode for console/braille or native escape key interceptions
@@ -479,6 +481,9 @@ int main(int argc, char* argv[])
         if (!frame.data || frame.width <= 0 || frame.height <= 0) {
             continue;
         }
+
+        VLOG(2) << "CLI Client: Decoded frame at PTS: " << frame.timestamp
+                << " | Decode Latency: " << frame.decodeTimeMs << " ms";
 
         // Cache frame details for the final snapshot on exit
         lastFrameBytes.assign(frame.data, frame.data + frame.size);
@@ -554,6 +559,14 @@ int main(int argc, char* argv[])
     if (!lastFrameBytes.empty()) {
         saveSnapshot("snapshot.ppm", lastFrameBytes.data(), lastWidth, lastHeight);
     }
+
+    // Print final performance statistics
+    auto perf = decoder->getPerformanceStats();
+    LOG(INFO) << "========================================";
+    LOG(INFO) << "CLI Client: Performance Summary:";
+    LOG(INFO) << "  - Total Frames Decoded:  " << perf.totalDecodedFrames;
+    LOG(INFO) << "  - Average Decode Latency: " << perf.averageDecodeTimeMs << " ms";
+    LOG(INFO) << "========================================";
 
     decoder->close();
     google::ShutdownGoogleLogging();
