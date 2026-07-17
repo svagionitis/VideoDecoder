@@ -13,6 +13,13 @@ else()
     set(IS_WINDOWS OFF)
 endif()
 
+# Treat warnings as errors for production-grade builds
+if(MSVC)
+    add_compile_options(/WX /W4)
+else()
+    add_compile_options(-Werror -Wall -Wextra)
+endif()
+
 # Build options (defaulting to building the CLI and Tests, but NOT the GUI)
 option(BUILD_CLI "Build the Command Line Interface (CLI) client application" ON)
 option(BUILD_GUI "Build the Qt-based Desktop GUI application client" OFF)
