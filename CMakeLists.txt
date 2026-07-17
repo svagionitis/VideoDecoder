@@ -15,12 +15,9 @@ else()
     set(IS_WINDOWS OFF)
 endif()
 
-# Treat warnings as errors for production-grade builds
-if(MSVC)
-    add_compile_options(/WX /W4)
-else()
-    add_compile_options(-Werror -Wall -Wextra)
-endif()
+# Include custom compiler warning options, hardening, and sanitizer configurations
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(CompilerFlags)
 
 # Build options (defaulting to building the CLI and Tests, but NOT the GUI)
 option(BUILD_CLI "Build the Command Line Interface (CLI) client application" ON)
