@@ -5,6 +5,11 @@
 
 #pragma once
 
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4251)
+#endif
+
 #include "DecoderTypes.h"
 #include <string>
 
@@ -299,3 +304,7 @@ private:
 };
 
 } // namespace videodecoder
+
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
