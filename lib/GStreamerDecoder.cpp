@@ -38,10 +38,11 @@ void GStreamerDecoder::initGStreamer()
     }
 }
 
-bool GStreamerDecoder::initialize(std::string_view filePath)
+bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
+    m_outputFormat = format;
 
     // Escape file path for pipeline construction
     std::string escapedPath;
@@ -64,13 +65,16 @@ bool GStreamerDecoder::initialize(std::string_view filePath)
     const char* useNativeSink = std::getenv("GST_USE_NATIVE_SINK");
     bool enableNative = (useNativeSink && std::string(useNativeSink) == "1");
 
+    std::string formatStr = (m_outputFormat == PixelFormat::BGR24) ? "BGR" : "RGB";
+
     std::string pipelineDesc;
     if (enableNative) {
         pipelineDesc = sourceBin
             + " ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! appsink name=sink caps=\"video/x-raw, "
-              "format=RGB\"";
+              "format="
+            + formatStr + "\"";
     } else {
-        pipelineDesc = sourceBin + " ! videoconvert ! appsink name=sink caps=\"video/x-raw, format=RGB\"";
+        pipelineDesc = sourceBin + " ! videoconvert ! appsink name=sink caps=\"video/x-raw, format=" + formatStr + "\"";
     }
 
     GError* error = nullptr;
@@ -317,6 +321,7 @@ FrameInfo GStreamerDecoder::getRawFrameData() const
     info.size = m_rgbBuffer.size();
     info.timestamp = m_timestamp;
     info.decodeTimeMs = m_lastDecodeTimeMs;
+    info.format = m_outputFormat;
     return info;
 }
 
@@ -335,6 +340,7 @@ void GStreamerDecoder::close()
     m_frameRate = 0.0;
     m_duration = 0.0;
     m_codecName.clear();
+    m_outputFormat = PixelFormat::RGB24;
     m_initTimeMs = 0.0;
     m_lastDecodeTimeMs = 0.0;
     m_totalDecodeTimeMs = 0.0;
@@ -351,6 +357,7 @@ VideoMetadata GStreamerDecoder::getVideoMetadata() const
     meta.frameRate = m_frameRate;
     meta.duration = m_duration;
     meta.codecName = m_codecName;
+    meta.format = m_outputFormat;
     return meta;
 }
 

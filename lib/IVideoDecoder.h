@@ -32,11 +32,12 @@ public:
      * the decoder pipeline (FFmpeg codecs or GStreamer parse/sink elements).
      *
      * @param filePath Absolute path or valid file path to the video source.
+     * @param format The requested output format for decoded frames (defaults to RGB24).
      * @return true if initialization is successful and stream is ready to decode, false otherwise.
      * @throws std::runtime_error or other standard exceptions on critical failure (e.g. backend out of memory).
      * @note If initialized successfully, you must call close() or rely on destruction to release handles.
      */
-    virtual bool initialize(std::string_view filePath) = 0;
+    virtual bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24) = 0;
 
     /**
      * @brief Decodes the next available frame in the video stream.

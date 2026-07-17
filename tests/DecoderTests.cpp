@@ -271,3 +271,41 @@ TEST_F(DecoderTestFixture, SeeksSuccessfully)
         }
     }
 }
+
+// 8. Output Format Selection check
+TEST_F(DecoderTestFixture, OutputFormatSelection)
+{
+    // FFmpeg format check
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::BGR24);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_EQ(meta.format, PixelFormat::BGR24);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_EQ(frame.format, PixelFormat::BGR24);
+            decoder->close();
+        }
+    }
+
+    // GStreamer format check
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::BGR24);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_EQ(meta.format, PixelFormat::BGR24);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_EQ(frame.format, PixelFormat::BGR24);
+            decoder->close();
+        }
+    }
+}

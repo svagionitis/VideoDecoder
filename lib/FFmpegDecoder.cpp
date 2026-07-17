@@ -19,10 +19,11 @@ FFmpegDecoder::~FFmpegDecoder()
     close();
 }
 
-bool FFmpegDecoder::initialize(std::string_view filePath)
+bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
+    m_outputFormat = format;
 
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
@@ -217,6 +218,7 @@ FrameInfo FFmpegDecoder::getRawFrameData() const
     info.size = m_rgbBuffer.size();
     info.timestamp = m_timestamp;
     info.decodeTimeMs = m_lastDecodeTimeMs;
+    info.format = m_outputFormat;
     return info;
 }
 
@@ -236,6 +238,7 @@ void FFmpegDecoder::close()
     m_frameRate = 0.0;
     m_duration = 0.0;
     m_codecName.clear();
+    m_outputFormat = PixelFormat::RGB24;
     m_initTimeMs = 0.0;
     m_lastDecodeTimeMs = 0.0;
     m_totalDecodeTimeMs = 0.0;
@@ -252,6 +255,7 @@ VideoMetadata FFmpegDecoder::getVideoMetadata() const
     meta.frameRate = m_frameRate;
     meta.duration = m_duration;
     meta.codecName = m_codecName;
+    meta.format = m_outputFormat;
     return meta;
 }
 
@@ -331,8 +335,9 @@ bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat sr
         m_height = height;
         m_rgbBuffer.resize(m_width * m_height * 3);
 
-        m_swsCtx.reset(sws_getContext(m_width, m_height, srcFormat, m_width, m_height, AV_PIX_FMT_RGB24, SWS_BILINEAR,
-            nullptr, nullptr, nullptr));
+        AVPixelFormat dstFormat = (m_outputFormat == PixelFormat::BGR24) ? AV_PIX_FMT_BGR24 : AV_PIX_FMT_RGB24;
+        m_swsCtx.reset(sws_getContext(
+            m_width, m_height, srcFormat, m_width, m_height, dstFormat, SWS_BILINEAR, nullptr, nullptr, nullptr));
 
         if (!m_swsCtx) {
             LOG(ERROR) << "FFmpeg: Failed to initialize software scaler context";
