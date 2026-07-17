@@ -40,7 +40,7 @@ if(NOT IS_WINDOWS)
     pkg_check_modules(GST_VIDEO REQUIRED IMPORTED_TARGET gstreamer-video-1.0)
 
     # Google Logging (glog)
-    pkg_check_modules(GLOG REQUIRED IMPORTED_TARGET libglog)
+    pkg_check_modules(GLOG IMPORTED_TARGET libglog)
 else()
     # On Windows, we try to find libraries via custom path variables or CMake finders.
 
@@ -63,7 +63,33 @@ else()
     find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
 
     # glog fallback
-    find_package(glog CONFIG REQUIRED)
+    find_package(glog CONFIG QUIET)
+endif()
+
+# Check if glog is found, otherwise use FetchContent fallback
+set(GLOG_FOUND OFF)
+if(NOT IS_WINDOWS)
+    if(GLOG_FOUND)
+        set(GLOG_TARGET PkgConfig::GLOG)
+    endif()
+else()
+    if(glog_FOUND)
+        set(GLOG_TARGET glog::glog)
+        set(GLOG_FOUND ON)
+    endif()
+endif()
+
+if(NOT GLOG_FOUND)
+    include(FetchContent)
+    FetchContent_Declare(
+        glog
+        GIT_REPOSITORY https://github.com/google/glog.git
+        GIT_TAG        v0.6.0
+    )
+    set(WITH_GFLAGS OFF CACHE BOOL "" FORCE)
+    set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
+    FetchContent_MakeAvailable(glog)
+    set(GLOG_TARGET glog::glog)
 endif()
 
 

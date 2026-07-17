@@ -32,7 +32,7 @@ if(NOT IS_WINDOWS)
         PkgConfig::GST
         PkgConfig::GST_APP
         PkgConfig::GST_VIDEO
-        PkgConfig::GLOG
+        ${GLOG_TARGET}
     )
 else()
     target_include_directories(VideoDecoder SYSTEM PRIVATE
@@ -51,7 +51,7 @@ else()
         ${GST_VIDEO_LIBRARY}
         ${GLIB_LIBRARY}
         ${GOBJECT_LIBRARY}
-        glog::glog
+        ${GLOG_TARGET}
     )
 endif()
 
