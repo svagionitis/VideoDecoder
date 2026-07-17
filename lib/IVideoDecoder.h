@@ -8,6 +8,7 @@
 #include "DecoderTypes.h"
 #include "Visibility.h"
 #include <string_view>
+#include <vector>
 
 namespace videodecoder {
 
@@ -33,11 +34,13 @@ public:
      *
      * @param filePath Absolute path or valid file path to the video source.
      * @param format The requested output format for decoded frames (defaults to RGB24).
+     * @param threadCount The number of decoding threads to use (0 for auto-detection).
      * @return true if initialization is successful and stream is ready to decode, false otherwise.
      * @throws std::runtime_error or other standard exceptions on critical failure (e.g. backend out of memory).
      * @note If initialized successfully, you must call close() or rely on destruction to release handles.
      */
-    virtual bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24) = 0;
+    virtual bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24, int threadCount = 0)
+        = 0;
 
     /**
      * @brief Decodes the next available frame in the video stream.
@@ -84,6 +87,14 @@ public:
      *       and flushes internal decoder buffers. Seeking has no effect and returns false for live streams.
      */
     virtual bool seek(double timeInSeconds) = 0;
+
+    /**
+     * @brief Binds the calling thread (the thread invoking decodeNextFrame) to specific CPU cores.
+     *
+     * @param cpuIds Vector of CPU core IDs to pin the thread to.
+     * @return true if successful, false otherwise.
+     */
+    virtual bool setDecodingThreadAffinity(const std::vector<int>& cpuIds) = 0;
 
     /**
      * @brief Closes the video file and releases all allocated decoder resources.

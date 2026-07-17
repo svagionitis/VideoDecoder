@@ -11,7 +11,23 @@
 #include <gst/video/video.h>
 #include <thread>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <sched.h>
+#endif
+
 namespace videodecoder {
+
+static void onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
+{
+    (void)bin;
+    int threads = *static_cast<int*>(user_data);
+    if (threads > 0 && g_object_class_find_property(G_OBJECT_GET_CLASS(element), "max-threads")) {
+        g_object_set(element, "max-threads", threads, nullptr);
+    }
+}
 
 GStreamerDecoder::GStreamerDecoder()
 {
@@ -39,12 +55,13 @@ void GStreamerDecoder::initGStreamer()
     }
 }
 
-bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format)
+bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
     m_filePath = std::string(filePath);
+    m_threadCount = threadCount;
 
     // Escape file path for pipeline construction
     std::string escapedPath;
@@ -88,6 +105,10 @@ bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format)
         return false;
     }
     m_pipeline.reset(pipelineRaw);
+
+    if (m_threadCount > 0) {
+        g_signal_connect(m_pipeline.get(), "element-added", G_CALLBACK(onElementAdded), &m_threadCount);
+    }
 
     // Retrieve appsink element
     m_sink = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "sink");
@@ -367,6 +388,7 @@ void GStreamerDecoder::close()
     m_totalDecodeTimeMs = 0.0;
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
+    m_threadCount = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -433,6 +455,43 @@ bool GStreamerDecoder::seek(double timeInSeconds)
     return true;
 }
 
+bool GStreamerDecoder::setDecodingThreadAffinity(const std::vector<int>& cpuIds)
+{
+    if (cpuIds.empty()) {
+        LOG(WARNING) << "GStreamer: Empty CPU list. Thread affinity not set.";
+        return false;
+    }
+#ifdef _WIN32
+    DWORD_PTR mask = 0;
+    for (int cpu : cpuIds) {
+        if (cpu >= 0 && cpu < static_cast<int>(sizeof(DWORD_PTR) * 8)) {
+            mask |= (static_cast<DWORD_PTR>(1) << cpu);
+        }
+    }
+    if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+        LOG(ERROR) << "GStreamer: Failed to set thread affinity. Error: " << GetLastError();
+        return false;
+    }
+    LOG(INFO) << "GStreamer: Successfully set thread affinity for current thread.";
+    return true;
+#else
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    for (int cpu : cpuIds) {
+        if (cpu >= 0 && cpu < CPU_SETSIZE) {
+            CPU_SET(cpu, &cpuset);
+        }
+    }
+    int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+        LOG(ERROR) << "GStreamer: Failed to set thread affinity. Error: " << rc;
+        return false;
+    }
+    LOG(INFO) << "GStreamer: Successfully set thread affinity for current thread.";
+    return true;
+#endif
+}
+
 bool GStreamerDecoder::reconnect()
 {
     LOG(INFO) << "GStreamer: Reconnecting to source: " << m_filePath;
@@ -440,13 +499,14 @@ bool GStreamerDecoder::reconnect()
     // Cache the connection parameters
     std::string cachedPath = m_filePath;
     PixelFormat cachedFormat = m_outputFormat;
+    int cachedThreads = m_threadCount;
 
     // Close resource structures
     close();
 
     // Restore m_filePath so close() calls don't discard it, and call initialize
     m_filePath = cachedPath;
-    bool success = initialize(cachedPath, cachedFormat);
+    bool success = initialize(cachedPath, cachedFormat, cachedThreads);
     if (success) {
         LOG(INFO) << "GStreamer: Successfully reconnected to live stream.";
         return true;

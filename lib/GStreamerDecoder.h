@@ -138,12 +138,13 @@ public:
      */
     ~GStreamerDecoder() override;
 
-    bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24) override;
+    bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24, int threadCount = 0) override;
     bool decodeNextFrame() override;
     FrameInfo getRawFrameData() const override;
     VideoMetadata getVideoMetadata() const override;
     DecoderPerformanceStats getPerformanceStats() const override;
     bool seek(double timeInSeconds) override;
+    bool setDecodingThreadAffinity(const std::vector<int>& cpuIds) override;
     void close() override;
 
 private:
@@ -164,6 +165,7 @@ private:
     uint64_t m_decodedFramesCount = 0; ///< Cumulative count of successfully decoded frames
     std::string m_filePath; ///< Target video stream path cached for reconnection
     int m_reconnectAttempts = 0; ///< Retry count for live stream reconnection
+    int m_threadCount = 0; ///< Number of threads for decoding
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of stream flag
 

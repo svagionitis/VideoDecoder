@@ -8,6 +8,13 @@
 #include <glog/logging.h>
 #include <thread>
 
+#ifdef _WIN32
+#include <windows.h>
+#else
+#include <pthread.h>
+#include <sched.h>
+#endif
+
 namespace videodecoder {
 
 FFmpegDecoder::FFmpegDecoder()
@@ -20,12 +27,13 @@ FFmpegDecoder::~FFmpegDecoder()
     close();
 }
 
-bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format)
+bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
     m_filePath = std::string(filePath);
+    m_threadCount = threadCount;
 
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
@@ -68,6 +76,10 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format)
         LOG(ERROR) << "FFmpeg: Failed to copy parameters to context (error: " << ret << ")";
         return false;
     }
+
+    // Configure multithreading
+    m_codecCtx->thread_count = m_threadCount;
+    m_codecCtx->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
 
     // Open decoder codec
     ret = avcodec_open2(m_codecCtx.get(), codec, nullptr);
@@ -267,6 +279,7 @@ void FFmpegDecoder::close()
     m_totalDecodeTimeMs = 0.0;
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
+    m_threadCount = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -347,6 +360,43 @@ bool FFmpegDecoder::seek(double timeInSeconds)
     return true;
 }
 
+bool FFmpegDecoder::setDecodingThreadAffinity(const std::vector<int>& cpuIds)
+{
+    if (cpuIds.empty()) {
+        LOG(WARNING) << "FFmpeg: Empty CPU list. Thread affinity not set.";
+        return false;
+    }
+#ifdef _WIN32
+    DWORD_PTR mask = 0;
+    for (int cpu : cpuIds) {
+        if (cpu >= 0 && cpu < static_cast<int>(sizeof(DWORD_PTR) * 8)) {
+            mask |= (static_cast<DWORD_PTR>(1) << cpu);
+        }
+    }
+    if (SetThreadAffinityMask(GetCurrentThread(), mask) == 0) {
+        LOG(ERROR) << "FFmpeg: Failed to set thread affinity. Error: " << GetLastError();
+        return false;
+    }
+    LOG(INFO) << "FFmpeg: Successfully set thread affinity for current thread.";
+    return true;
+#else
+    cpu_set_t cpuset;
+    CPU_ZERO(&cpuset);
+    for (int cpu : cpuIds) {
+        if (cpu >= 0 && cpu < CPU_SETSIZE) {
+            CPU_SET(cpu, &cpuset);
+        }
+    }
+    int rc = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &cpuset);
+    if (rc != 0) {
+        LOG(ERROR) << "FFmpeg: Failed to set thread affinity. Error: " << rc;
+        return false;
+    }
+    LOG(INFO) << "FFmpeg: Successfully set thread affinity for current thread.";
+    return true;
+#endif
+}
+
 bool FFmpegDecoder::reconnect()
 {
     LOG(INFO) << "FFmpeg: Reconnecting to source: " << m_filePath;
@@ -354,13 +404,14 @@ bool FFmpegDecoder::reconnect()
     // Cache the connection parameters
     std::string cachedPath = m_filePath;
     PixelFormat cachedFormat = m_outputFormat;
+    int cachedThreads = m_threadCount;
 
     // Close resource structures
     close();
 
     // Restore m_filePath so close() calls don't discard it, and call initialize
     m_filePath = cachedPath;
-    bool success = initialize(cachedPath, cachedFormat);
+    bool success = initialize(cachedPath, cachedFormat, cachedThreads);
     if (success) {
         LOG(INFO) << "FFmpeg: Successfully reconnected to live stream.";
         return true;

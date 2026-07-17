@@ -329,3 +329,37 @@ TEST_F(DecoderTestFixture, SimulatesLiveStreamInitialization)
         EXPECT_FALSE(decoder->initialize("rtsp://127.0.0.1:9999/live.sdp"));
     }
 }
+
+// 10. Multithreading and Thread Affinity check
+TEST_F(DecoderTestFixture, ConfiguresMultithreadingAndAffinity)
+{
+    // FFmpeg check
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24, 4);
+        if (initialized) {
+            EXPECT_TRUE(decoder->setDecodingThreadAffinity({ 0 }));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_NE(frame.data, nullptr);
+            decoder->close();
+        }
+    }
+
+    // GStreamer check
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24, 4);
+        if (initialized) {
+            EXPECT_TRUE(decoder->setDecodingThreadAffinity({ 0 }));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_NE(frame.data, nullptr);
+            decoder->close();
+        }
+    }
+}
