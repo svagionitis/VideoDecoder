@@ -1,0 +1,29 @@
+#!/bin/bash
+# Pre-commit hook to automatically format staged C++ files using clang-format (WebKit Style)
+
+# Find all staged C++ files (Added, Copied, Modified)
+STAGED_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|h|cc|cxx|hpp)$' || true)
+
+if [ -n "$STAGED_FILES" ]; then
+    echo "============================================="
+    echo "Pre-commit: Formatting C++ code to WebKit conventions..."
+    
+    # Check if clang-format is available
+    if ! command -v clang-format &> /dev/null; then
+        echo "Warning: clang-format is not installed. Skipping auto-formatting."
+        echo "============================================="
+        exit 0
+    fi
+
+    for FILE in $STAGED_FILES; do
+        if [ -f "$FILE" ]; then
+            echo "Formatting: $FILE"
+            clang-format -i "$FILE"
+            git add "$FILE"
+        fi
+    done
+    echo "Pre-commit: Formatting complete and restaged."
+    echo "============================================="
+fi
+
+exit 0

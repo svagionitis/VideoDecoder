@@ -1,0 +1,46 @@
+# --- lib/CMakeLists.txt ---
+cmake_minimum_required(VERSION 3.16)
+
+add_library(VideoDecoder SHARED
+    IVideoDecoder.h
+    DecoderFactory.h
+    DecoderTypes.h
+    Visibility.h
+    FFmpegDecoder.h
+    FFmpegDecoder.cpp
+    GStreamerDecoder.h
+    GStreamerDecoder.cpp
+    DecoderFactory.cpp
+)
+
+# Export macro for Windows/Linux visibility control
+target_compile_definitions(VideoDecoder PRIVATE VIDEODECODER_EXPORTS)
+
+# Public include directory (exposes headers in lib/ directly)
+target_include_directories(VideoDecoder PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+    $<INSTALL_INTERFACE:include>
+)
+
+# Link dependencies resolved in root CMakeLists
+if(NOT IS_WINDOWS)
+    target_link_libraries(VideoDecoder PRIVATE
+        PkgConfig::AVCODEC
+        PkgConfig::AVFORMAT
+        PkgConfig::AVUTIL
+        PkgConfig::SWSCALE
+        PkgConfig::GST
+        PkgConfig::GST_APP
+        PkgConfig::GST_VIDEO
+        PkgConfig::GLOG
+    )
+else()
+    target_include_directories(VideoDecoder PRIVATE ${FFMPEG_INCLUDE_DIR} ${GST_INCLUDE_DIR})
+    target_link_libraries(VideoDecoder PRIVATE
+        ${AVCODEC_LIBRARY}
+        ${AVFORMAT_LIBRARY}
+        ${AVUTIL_LIBRARY}
+        ${SWSCALE_LIBRARY}
+        glog::glog
+    )
+endif()

@@ -1,0 +1,42 @@
+# Build directories
+/[Bb]uild/
+/build*/
+/out/
+/bin/
+
+# Dependency directories
+/third_party/
+
+# Compiled Object files
+*.o
+*.obj
+*.d
+*.o.d
+
+# Libraries and Executables
+*.so
+*.dll
+*.dylib
+*.a
+*.lib
+VideoDecoderCLI
+VideoDecoderGUI
+VideoDecoderTests
+
+# Qt Creator, VS Code, and IDE files
+*.user
+*.user.*
+.vscode/
+.idea/
+.vs/
+*.sln
+*.vcxproj
+*.filters
+*.suo
+
+# OS-specific files
+.DS_Store
+Thumbs.db
+
+# Test artifacts
+/tests/test_input.mp4
