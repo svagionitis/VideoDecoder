@@ -7,7 +7,6 @@
 
 #include "IVideoDecoder.h"
 #include <memory>
-#include <string>
 #include <vector>
 
 // Forward declarations and extern C declarations for FFmpeg headers

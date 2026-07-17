@@ -5,12 +5,12 @@
 
 #pragma once
 
+#include <memory>
+#include <vector>
+
 #include "IVideoDecoder.h"
 #include <gst/app/gstappsink.h>
 #include <gst/gst.h>
-#include <memory>
-#include <string>
-#include <vector>
 
 namespace videodecoder {
 
