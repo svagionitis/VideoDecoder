@@ -378,7 +378,7 @@ bool GStreamerDecoder::decodeNextFrame()
     } else {
         // Fallback: direct copy if video_info_from_caps fails
         size_t expectedSize = m_width * m_height * 3;
-        std::memcpy(m_rgbBuffer.data(), map.data(), std::min(map.size(), expectedSize));
+        std::memcpy(m_rgbBuffer.data(), map.data(), (std::min)(map.size(), expectedSize));
     }
 
     // Apply frame processors (filters) on the output buffer in-place
