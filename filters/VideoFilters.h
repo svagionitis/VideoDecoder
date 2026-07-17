@@ -191,4 +191,111 @@ private:
     double m_bScale;
 };
 
+/**
+ * @class ClaheFilter
+ * @brief Contrast Limited Adaptive Histogram Equalization (CLAHE) for local contrast enhancement.
+ */
+class VIDEOFILTERS_API ClaheFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param clipLimit Threshold for contrast limiting.
+     * @param tileGridSize Size of grid for histogram equalization.
+     */
+    ClaheFilter(double clipLimit = 2.0, int tileGridSize = 8);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    double m_clipLimit;
+    int m_tileGridSize;
+};
+
+/**
+ * @class BilateralFilter
+ * @brief Smooths the frame while preserving edges using a bilateral filter.
+ */
+class VIDEOFILTERS_API BilateralFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param d Diameter of each pixel neighborhood.
+     * @param sigmaColor Filter sigma in the color space.
+     * @param sigmaSpace Filter sigma in the coordinate space.
+     */
+    BilateralFilter(int d = 9, double sigmaColor = 75.0, double sigmaSpace = 75.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    int m_d;
+    double m_sigmaColor;
+    double m_sigmaSpace;
+};
+
+/**
+ * @class GammaCorrectionFilter
+ * @brief Adjusts the gamma of the video frame in-place.
+ */
+class VIDEOFILTERS_API GammaCorrectionFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param gamma Gamma value (1.0 is normal, < 1.0 is brighter, > 1.0 is darker).
+     */
+    GammaCorrectionFilter(double gamma = 1.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    double m_gamma;
+};
+
+/**
+ * @class VignetteFilter
+ * @brief Applies a dark vignette effect towards the edges of the frame in-place.
+ */
+class VIDEOFILTERS_API VignetteFilter : public IFrameProcessor {
+public:
+    VignetteFilter() = default;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+};
+
+/**
+ * @class MosaicFilter
+ * @brief Applies a mosaic (pixelation) effect to the frame in-place.
+ */
+class VIDEOFILTERS_API MosaicFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param blockSize Width and height of pixel blocks.
+     */
+    MosaicFilter(int blockSize = 8);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    int m_blockSize;
+};
+
+/**
+ * @class ThresholdFilter
+ * @brief Converts the frame to a binary black and white representation in-place.
+ */
+class VIDEOFILTERS_API ThresholdFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param thresholdValue Intensity threshold value (0-255).
+     */
+    ThresholdFilter(double thresholdValue = 127.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    double m_thresholdValue;
+};
+
 } // namespace videodecoder

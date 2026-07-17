@@ -673,3 +673,172 @@ TEST_F(DecoderTestFixture, AppliesNewOpenCVFilters)
         }
     }
 }
+
+// 15. More OpenCV post-processing filters check
+TEST_F(DecoderTestFixture, AppliesMoreOpenCVFilters)
+{
+    // Test ClaheFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<ClaheFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test BilateralFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<BilateralFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test GammaCorrectionFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<GammaCorrectionFilter>(1.5); // darker
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test VignetteFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<VignetteFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test MosaicFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<MosaicFilter>(16);
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test ThresholdFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            auto filter = std::make_shared<ThresholdFilter>(128.0);
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // Thresholding outputs either 0 or 255
+            for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(1000)); ++i) {
+                EXPECT_TRUE(processedFrame.data[i] == 0 || processedFrame.data[i] == 255);
+            }
+            decoder->close();
+        }
+    }
+}
