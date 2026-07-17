@@ -114,4 +114,102 @@ void MirrorFilter::process(uint8_t* data, int width, int height, PixelFormat for
     cv::flip(mat, mat, m_horizontal ? 1 : 0);
 }
 
+// --- InvertColorsFilter ---
+void InvertColorsFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    (void)format;
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::bitwise_not(mat, mat);
+}
+
+// --- GrayscaleFilter ---
+void GrayscaleFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat gray;
+    if (format == PixelFormat::BGR24) {
+        cv::cvtColor(mat, gray, cv::COLOR_BGR2GRAY);
+        cv::cvtColor(gray, mat, cv::COLOR_GRAY2BGR);
+    } else {
+        cv::cvtColor(mat, gray, cv::COLOR_RGB2GRAY);
+        cv::cvtColor(gray, mat, cv::COLOR_GRAY2RGB);
+    }
+}
+
+// --- SepiaFilter ---
+void SepiaFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+    cv::Mat mat(height, width, CV_8UC3, data);
+
+    cv::Mat sepiaKernel;
+    if (format == PixelFormat::BGR24) {
+        // OpenCV BGR order: Blue (0), Green (1), Red (2)
+        // Red = 0.393 * R + 0.769 * G + 0.189 * B
+        // Green = 0.349 * R + 0.686 * G + 0.168 * B
+        // Blue = 0.272 * R + 0.534 * G + 0.131 * B
+        sepiaKernel = (cv::Mat_<float>(3, 3) << 0.131, 0.534, 0.272, // B
+            0.168, 0.686, 0.349, // G
+            0.189, 0.769, 0.393 // R
+        );
+    } else {
+        // RGB order: Red (0), Green (1), Blue (2)
+        sepiaKernel = (cv::Mat_<float>(3, 3) << 0.393, 0.769, 0.189, // R
+            0.349, 0.686, 0.168, // G
+            0.272, 0.534, 0.131 // B
+        );
+    }
+    cv::transform(mat, mat, sepiaKernel);
+}
+
+// --- SharpenFilter ---
+void SharpenFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    (void)format;
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+    cv::Mat mat(height, width, CV_8UC3, data);
+    cv::Mat kernel = (cv::Mat_<float>(3, 3) << 0, -1, 0, -1, 5, -1, 0, -1, 0);
+    cv::filter2D(mat, mat, mat.depth(), kernel);
+}
+
+// --- ColorTintFilter ---
+ColorTintFilter::ColorTintFilter(double rScale, double gScale, double bScale)
+    : m_rScale(rScale)
+    , m_gScale(gScale)
+    , m_bScale(bScale)
+{
+}
+
+void ColorTintFilter::process(uint8_t* data, int width, int height, PixelFormat format)
+{
+    if (!data || width <= 0 || height <= 0) {
+        return;
+    }
+    cv::Mat mat(height, width, CV_8UC3, data);
+    std::vector<cv::Mat> channels;
+    cv::split(mat, channels);
+
+    if (format == PixelFormat::BGR24) {
+        channels[0] *= m_bScale;
+        channels[1] *= m_gScale;
+        channels[2] *= m_rScale;
+    } else {
+        channels[0] *= m_rScale;
+        channels[1] *= m_gScale;
+        channels[2] *= m_bScale;
+    }
+
+    cv::merge(channels, mat);
+}
+
 } // namespace videodecoder

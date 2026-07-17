@@ -125,4 +125,70 @@ private:
     bool m_horizontal;
 };
 
+/**
+ * @class InvertColorsFilter
+ * @brief Inverts the color channels of a video frame in-place (negative effect).
+ */
+class VIDEOFILTERS_API InvertColorsFilter : public IFrameProcessor {
+public:
+    InvertColorsFilter() = default;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+};
+
+/**
+ * @class GrayscaleFilter
+ * @brief Converts a color video frame to grayscale in-place, preserving its 3-channel structure.
+ */
+class VIDEOFILTERS_API GrayscaleFilter : public IFrameProcessor {
+public:
+    GrayscaleFilter() = default;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+};
+
+/**
+ * @class SepiaFilter
+ * @brief Applies a vintage sepia color transformation to a video frame in-place.
+ */
+class VIDEOFILTERS_API SepiaFilter : public IFrameProcessor {
+public:
+    SepiaFilter() = default;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+};
+
+/**
+ * @class SharpenFilter
+ * @brief Applies a sharpening 2D kernel convolution to a video frame in-place.
+ */
+class VIDEOFILTERS_API SharpenFilter : public IFrameProcessor {
+public:
+    SharpenFilter() = default;
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+};
+
+/**
+ * @class ColorTintFilter
+ * @brief Multiplies color channels by specified scale factors in-place to achieve color tinting.
+ */
+class VIDEOFILTERS_API ColorTintFilter : public IFrameProcessor {
+public:
+    /**
+     * @brief Constructor.
+     * @param rScale Red channel scaling factor.
+     * @param gScale Green channel scaling factor.
+     * @param bScale Blue channel scaling factor.
+     */
+    ColorTintFilter(double rScale = 1.0, double gScale = 1.0, double bScale = 1.0);
+
+    void process(uint8_t* data, int width, int height, PixelFormat format) override;
+
+private:
+    double m_rScale;
+    double m_gScale;
+    double m_bScale;
+};
+
 } // namespace videodecoder

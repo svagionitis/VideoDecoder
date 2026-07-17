@@ -542,3 +542,134 @@ TEST_F(DecoderTestFixture, AppliesOpenCVFilters)
         }
     }
 }
+
+// 14. New OpenCV post-processing filters check
+TEST_F(DecoderTestFixture, AppliesNewOpenCVFilters)
+{
+    // Test InvertColorsFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<InvertColorsFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(100)); ++i) {
+                EXPECT_EQ(processedFrame.data[i], static_cast<uint8_t>(255 - originalPixels[i]));
+            }
+            decoder->close();
+        }
+    }
+
+    // Test GrayscaleFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            auto filter = std::make_shared<GrayscaleFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // Grayscale ensures red, green, blue values are identical (or extremely close) for each pixel
+            for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(90)); i += 3) {
+                EXPECT_NEAR(processedFrame.data[i], processedFrame.data[i + 1], 1);
+                EXPECT_NEAR(processedFrame.data[i + 1], processedFrame.data[i + 2], 1);
+            }
+            decoder->close();
+        }
+    }
+
+    // Test SepiaFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<SepiaFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // Sepia alters pixels. Ensure they are not identical
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test SharpenFilter
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame1 = decoder->getRawFrameData();
+            std::vector<uint8_t> originalPixels(frame1.data, frame1.data + frame1.size);
+
+            auto filter = std::make_shared<SharpenFilter>();
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->seek(0.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // Sharpen alters pixels. Ensure they are not identical
+            bool identical = true;
+            for (size_t i = 0; i < processedFrame.size; ++i) {
+                if (processedFrame.data[i] != originalPixels[i]) {
+                    identical = false;
+                    break;
+                }
+            }
+            EXPECT_FALSE(identical);
+            decoder->close();
+        }
+    }
+
+    // Test ColorTintFilter (Blue only tint)
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24);
+        if (initialized) {
+            // Apply blue-only tint
+            auto filter = std::make_shared<ColorTintFilter>(0.0, 0.0, 1.0);
+            decoder->addFrameProcessor(filter);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto processedFrame = decoder->getRawFrameData();
+
+            // R and G channels should be 0 since scales are 0.0
+            for (size_t i = 0; i < std::min(processedFrame.size, static_cast<size_t>(90)); i += 3) {
+                EXPECT_EQ(processedFrame.data[i], 0); // Red
+                EXPECT_EQ(processedFrame.data[i + 1], 0); // Green
+            }
+            decoder->close();
+        }
+    }
+}
