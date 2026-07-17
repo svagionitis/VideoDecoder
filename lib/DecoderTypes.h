@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <string>
+#include "Visibility.h"
 
 namespace videodecoder {
 
@@ -82,7 +83,7 @@ struct DecoderPerformanceStats {
  * @class IFrameProcessor
  * @brief Interface for processing decoded video frames in-place.
  */
-class IFrameProcessor {
+class VIDEODECODER_API IFrameProcessor {
 public:
     virtual ~IFrameProcessor() = default;
 
