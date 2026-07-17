@@ -40,8 +40,16 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
 
+    AVDictionary* options = nullptr;
+    // Set socket and TCP connection timeout to 2 seconds (in microseconds)
+    av_dict_set(&options, "stimeout", "2000000", 0);
+    av_dict_set(&options, "timeout", "2000000", 0);
+
     // Open input stream
-    int ret = avformat_open_input(&formatCtxRaw, pathStr.c_str(), nullptr, nullptr);
+    int ret = avformat_open_input(&formatCtxRaw, pathStr.c_str(), nullptr, &options);
+    if (options) {
+        av_dict_free(&options);
+    }
     if (ret < 0) {
         LOG(ERROR) << "FFmpeg: Failed to open video file: " << filePath << " (error: " << ret << ")";
         return false;

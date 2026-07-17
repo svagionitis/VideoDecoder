@@ -27,6 +27,9 @@ static void onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
     if (threads > 0 && g_object_class_find_property(G_OBJECT_GET_CLASS(element), "max-threads")) {
         g_object_set(element, "max-threads", threads, nullptr);
     }
+    if (g_object_class_find_property(G_OBJECT_GET_CLASS(element), "connection-timeout")) {
+        g_object_set(element, "connection-timeout", 1000, nullptr);
+    }
 }
 
 GStreamerDecoder::GStreamerDecoder()
@@ -108,9 +111,7 @@ bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format,
     }
     m_pipeline.reset(pipelineRaw);
 
-    if (m_threadCount > 0) {
-        g_signal_connect(m_pipeline.get(), "element-added", G_CALLBACK(onElementAdded), &m_threadCount);
-    }
+    g_signal_connect(m_pipeline.get(), "element-added", G_CALLBACK(onElementAdded), &m_threadCount);
 
     // Retrieve appsink element
     m_sink = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "sink");
