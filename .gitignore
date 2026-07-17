@@ -40,3 +40,6 @@ Thumbs.db
 
 # Test artifacts
 /tests/test_input.mp4
+
+# IDE / LSP compilation database
+/compile_commands.json
