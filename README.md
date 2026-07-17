@@ -134,4 +134,8 @@ The project follows **WebKit** C++ style guidelines.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is dual-licensed:
+- **Open Source**: GNU General Public License version 3 (GPLv3).
+- **Commercial**: For use in commercial, proprietary, or closed-source applications.
+
+See the [LICENSE](LICENSE) file for details.
