@@ -5,7 +5,6 @@
 
 #include "FFmpegDecoder.h"
 #include <glog/logging.h>
-#include <stdexcept>
 
 namespace videodecoder {
 
