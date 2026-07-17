@@ -37,7 +37,7 @@ graph TD
 
 ## 2. C4 Level 2: Container Diagram
 
-The Container diagram decomposes the system into runtimes: the Command Line Interface (CLI) client, the Qt GUI client, and the shared library itself which encapsulates the backends.
+The Container diagram decomposes the system into runtimes: the Command Line Interface (CLI) client, the Qt GUI client, the core shared library, and the companion OpenCV-based filters shared library.
 
 ### ASCII Diagram
 
@@ -54,10 +54,16 @@ The Container diagram decomposes the system into runtimes: the Command Line Inte
 |              +------------------------+------------------------+              |
 |                                       |                                       |
 |                                       v                                       |
-|                        +------------------------------+                       |
-|                        |    Video Decoder Library     |                       |
-|                        |       (Shared Library)       |                       |
-|                        +--------------+---------------+                       |
+|                  +------------------------------------------+                 |
+|                  |          Video Decoder Library           |                 |
+|                  |             (Shared Library)             |                 |
+|                  +--------------------+---------------------+                 |
+|                                       ^                                       |
+|                                       | Links                                 |
+|                  +--------------------+---------------------+                 |
+|                  |          Video Filters Library           |                 |
+|                  |          (Shared Library w/ OpenCV)      |                 |
+|                  +------------------------------------------+                 |
 |                                       |                                       |
 |                        +--------------+--------------+                        |
 |                        |                             |                        |
@@ -79,17 +85,23 @@ graph TB
         GUI[Qt GUI Client<br>GUI Executable]
     end
 
-    subgraph Library [Shared Library Boundary]
+    subgraph Libraries [Shared Libraries]
         DecoderLib[Video Decoder Library<br>libVideoDecoder.so / .dll]
+        FiltersLib[Video Filters Library<br>libVideoFilters.so / .dll]
     end
 
     subgraph Deps [External Dependencies]
         FFmpeg[FFmpeg Runtime<br>avcodec/avformat/swscale]
         GStreamer[GStreamer Runtime<br>gstreamer/app/video]
+        OpenCV[OpenCV Runtime<br>core/imgproc]
     end
 
     CLI -->|Links & Calls| DecoderLib
     GUI -->|Links & Calls| DecoderLib
+    CLI -.->|Uses| FiltersLib
+    GUI -.->|Uses| FiltersLib
+    FiltersLib -->|Links & Uses| DecoderLib
+    FiltersLib -->|Uses| OpenCV
     DecoderLib -->|Dynamically uses| FFmpeg
     DecoderLib -->|Dynamically uses| GStreamer
 ```
@@ -151,6 +163,7 @@ The Component diagram shows the internal structure of the `VideoDecoder` shared 
 graph TB
     Client[Client App] -->|Uses| Factory[DecoderFactory]
     Client -->|Invokes API| IDecoder[IVideoDecoder<br>Interface]
+    Client -->|Instantiates| FilterImpl[VideoFilters Library<br>e.g. GaussianBlurFilter]
 
     Factory -->|Instantiates| FFDecoder[FFmpegDecoder]
     Factory -->|Instantiates| GSDecoder[GStreamerDecoder]
@@ -158,14 +171,19 @@ graph TB
     FFDecoder -.->|Implements| IDecoder
     GSDecoder -.->|Implements| IDecoder
 
+    FilterImpl -.->|Implements| IProc[IFrameProcessor<br>Interface]
+    Client -->|Registers filter| IDecoder
+
     subgraph FFmpegWrapper [FFmpeg Components]
         FFDecoder -->|Manages| FF_RAII[FFmpeg RAII Wrappers<br>AVFormatContextPtr<br>AVCodecContextPtr<br>AVFramePtr<br>AVPacketPtr]
         FF_RAII -->|Invokes| FFLib[libavformat / libavcodec / libswscale]
+        FFDecoder -->|Applies| IProc
     end
 
     subgraph GStreamerWrapper [GStreamer Components]
         GSDecoder -->|Manages| GS_RAII[GStreamer RAII Wrappers<br>GstElementPtr<br>GstSamplePtr<br>GstMapInfoWrapper]
         GS_RAII -->|Invokes| GSLib[libgstreamer / libgstapp / libgstvideo]
+        GSDecoder -->|Applies| IProc
     end
 ```
 
@@ -196,11 +214,15 @@ This diagram demonstrates how raw and compressed frames flow through the decoder
       v
 [ Reusable Internal Buffer ] (std::vector<uint8_t> in RGB24 format)
       |
-      | 5. Bridge to Client via IVideoDecoder::getRawFrameData()
+      | 5. Apply registered frame processors in-place (IFrameProcessor::process)
+      v
+[ Processed Reusable Buffer ] (std::vector<uint8_t> in RGB24 format)
+      |
+      | 6. Bridge to Client via IVideoDecoder::getRawFrameData()
       v
 [ Client Frame Reference ] (FrameInfo struct: raw pointer, width, height, PTS)
       |
-      | 6. Render / Process (QImage construction & paintEvent / GL texture upload)
+      | 7. Render / Process (QImage construction & paintEvent / GL texture upload)
       v
 [ Display Device ]
 ```
@@ -215,6 +237,7 @@ sequenceDiagram
     participant Decoder as Hardware/Software Decoder
     participant Convert as Color Converter (sws_scale / videoconvert)
     participant Buffer as Reusable Internal Buffer (RGB24)
+    participant Filter as IFrameProcessor (VideoFilters)
     participant Client as Client Application (CLI / Qt UI)
 
     File->>Demux: Read Bitstream Packet
@@ -222,6 +245,8 @@ sequenceDiagram
     Decoder->>Decoder: Decode compressed stream to raw pixels
     Decoder->>Convert: Retrieve decoded Frame (YUV / Native)
     Convert->>Buffer: Convert & copy to RGB24 layout (hot-path buffer reuse)
+    Buffer->>Filter: Apply registered filters in-place
+    Filter->>Buffer: Modified RGB24 raw pixels
     Buffer-->>Client: Return FrameInfo (pointer, dimensions, PTS)
     Client->>Client: Draw image or log stats
 ```

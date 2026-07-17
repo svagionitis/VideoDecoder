@@ -41,6 +41,10 @@ A complete, production-ready, cross-platform (Linux and Windows) video decoding 
 │   ├── Visibility.h            # Symbol export/import macro
 │   ├── FFmpegDecoder.h/cpp     # FFmpeg backend decoder
 │   └── GStreamerDecoder.h/cpp  # GStreamer backend decoder
+├── filters/
+│   ├── CMakeLists.txt          # Filters CMake targets
+│   ├── VideoFilters.h          # Post-processing filters header
+│   └── VideoFilters.cpp        # OpenCV-based filter implementations
 ├── cli/
 │   ├── CMakeLists.txt          # CLI CMake target
 │   └── main.cpp                # CLI app main entry point
@@ -119,6 +123,45 @@ ffmpeg -y -f lavfi -i testsrc=duration=11:size=320x240:rate=30 -c:v libx264 -pix
 ```
 
 ---
+
+## Post-Processing Video Filters
+
+The solution features a dedicated post-processing filters library (`VideoFilters`) built on top of OpenCV. It allows for modular, in-place frame processing on the decoded RGB24/BGR24 buffer.
+
+### Available Filters
+- **Brightness & Contrast**: Adjust levels via `BrightnessContrastFilter`.
+- **Gaussian Blur**: Blur frames using `GaussianBlurFilter`.
+- **Edge Detection**: Overlay Canny edges using `EdgeDetectionFilter`.
+- **Text Overlay**: Draw dynamic text labels via `TextOverlayFilter`.
+- **Mirror/Flip**: Horizontal/Vertical mirror via `MirrorFilter`.
+- **Color Operations**: Negative/Invert (`InvertColorsFilter`), `GrayscaleFilter`, `SepiaFilter`, and channels scaling (`ColorTintFilter`).
+- **Advanced Processing**: Local contrast enhancement (`ClaheFilter`), edge-preserving smoothing (`BilateralFilter`), `GammaCorrectionFilter`, `VignetteFilter`, pixelation (`MosaicFilter`), and binarization (`ThresholdFilter`).
+
+### Integration Example
+Filters implement the `IFrameProcessor` interface and are attached directly to any `IVideoDecoder` instance. They run sequentially on the hot-path:
+
+```cpp
+#include "DecoderFactory.h"
+#include "VideoFilters.h"
+
+// 1. Instantiate decoder and filter
+auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+auto blurFilter = std::make_shared<videodecoder::GaussianBlurFilter>(9);
+
+// 2. Register filter
+decoder->addFrameProcessor(blurFilter);
+
+// 3. Initialize and decode - filters run in-place automatically
+if (decoder->initialize("video.mp4")) {
+    while (decoder->decodeNextFrame()) {
+        FrameInfo frame = decoder->getRawFrameData();
+        // frame.data now contains the blurred image
+    }
+}
+```
+
+---
+
 
 ## Code Quality & Style Enforcement
 
