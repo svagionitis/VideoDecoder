@@ -106,7 +106,8 @@ public:
      */
     ~FFmpegDecoder() override;
 
-    bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24, int threadCount = 0) override;
+    bool initialize(std::string_view filePath, PixelFormat format = PixelFormat::RGB24, int threadCount = 0,
+        DeviceType device = DeviceType::CPU) override;
     bool decodeNextFrame() override;
     FrameInfo getRawFrameData() const override;
     VideoMetadata getVideoMetadata() const override;
@@ -138,6 +139,10 @@ private:
     std::string m_filePath; ///< Target video stream path cached for reconnection
     int m_reconnectAttempts = 0; ///< Retry count for live stream reconnection
     int m_threadCount = 0; ///< Number of threads for decoding
+    AVBufferRef* m_hwDeviceCtx = nullptr; ///< Hardware device context for GPU decoding
+    AVFramePtr m_cpuFrame; ///< CPU-side frame holding pixels transferred from GPU
+    DeviceType m_deviceType = DeviceType::CPU; ///< Requested hardware acceleration device
+    DeviceType m_actualDeviceType = DeviceType::CPU; ///< Actual hardware acceleration device used
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of file flag
 

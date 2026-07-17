@@ -363,3 +363,44 @@ TEST_F(DecoderTestFixture, ConfiguresMultithreadingAndAffinity)
         }
     }
 }
+
+// 11. Hardware Acceleration (GPU Decoding) check
+TEST_F(DecoderTestFixture, GPUDecodingFallback)
+{
+    // FFmpeg GPU fallback check
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        // Requests CUDA device. If CUDA is not available on test machine, it should fall back to CPU
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24, 0, DeviceType::CUDA);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            // Should be either CUDA (if supported by system drivers/hardware) or CPU (fallback)
+            EXPECT_TRUE(meta.deviceType == DeviceType::CUDA || meta.deviceType == DeviceType::CPU);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_NE(frame.data, nullptr);
+            decoder->close();
+        }
+    }
+
+    // GStreamer GPU fallback check
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        // Requests CUDA device. If CUDA is not available, it should fall back to CPU
+        bool initialized = decoder->initialize(TEST_INPUT_PATH, PixelFormat::RGB24, 0, DeviceType::CUDA);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_TRUE(meta.deviceType == DeviceType::CUDA || meta.deviceType == DeviceType::CPU);
+
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_NE(frame.data, nullptr);
+            decoder->close();
+        }
+    }
+}

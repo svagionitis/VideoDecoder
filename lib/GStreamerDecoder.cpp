@@ -55,13 +55,15 @@ void GStreamerDecoder::initGStreamer()
     }
 }
 
-bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount)
+bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount, DeviceType device)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
     m_filePath = std::string(filePath);
     m_threadCount = threadCount;
+    m_deviceType = device;
+    m_actualDeviceType = DeviceType::CPU;
 
     // Escape file path for pipeline construction
     std::string escapedPath;
@@ -133,6 +135,50 @@ bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format,
         LOG(ERROR) << "GStreamer: Pipeline state change failed during pre-roll";
         close();
         return false;
+    }
+
+    // Determine actual device type by scanning elements
+    GstIterator* hwIt = gst_bin_iterate_elements(GST_BIN(m_pipeline.get()));
+    if (hwIt) {
+        GValue val = G_VALUE_INIT;
+        gboolean done = FALSE;
+        while (!done) {
+            switch (gst_iterator_next(hwIt, &val)) {
+            case GST_ITERATOR_OK: {
+                GstElement* element = GST_ELEMENT(g_value_get_object(&val));
+                if (element) {
+                    gchar* name = gst_element_get_name(element);
+                    if (name) {
+                        std::string nameStr(name);
+                        std::transform(nameStr.begin(), nameStr.end(), nameStr.begin(), ::tolower);
+                        if (nameStr.find("nvdec") != std::string::npos || nameStr.find("cuvid") != std::string::npos
+                            || nameStr.find("nvh264") != std::string::npos) {
+                            m_actualDeviceType = DeviceType::CUDA;
+                        } else if (nameStr.find("vaapi") != std::string::npos
+                            || (nameStr.find("va") != std::string::npos && nameStr.find("dec") != std::string::npos)) {
+                            m_actualDeviceType = DeviceType::VAAPI;
+                        } else if (nameStr.find("d3d11") != std::string::npos) {
+                            m_actualDeviceType = DeviceType::D3D11VA;
+                        }
+                        g_free(name);
+                    }
+                }
+                g_value_reset(&val);
+                break;
+            }
+            case GST_ITERATOR_RESYNC:
+                gst_iterator_resync(hwIt);
+                break;
+            case GST_ITERATOR_DONE:
+                done = TRUE;
+                break;
+            case GST_ITERATOR_ERROR:
+                done = TRUE;
+                break;
+            }
+        }
+        g_value_unset(&val);
+        gst_iterator_free(hwIt);
     }
 
     // Query width, height, and frame rate from appsink caps
@@ -389,6 +435,8 @@ void GStreamerDecoder::close()
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
     m_threadCount = 0;
+    m_deviceType = DeviceType::CPU;
+    m_actualDeviceType = DeviceType::CPU;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -402,6 +450,7 @@ VideoMetadata GStreamerDecoder::getVideoMetadata() const
     meta.duration = m_duration;
     meta.codecName = m_codecName;
     meta.format = m_outputFormat;
+    meta.deviceType = m_actualDeviceType;
     return meta;
 }
 
@@ -500,13 +549,14 @@ bool GStreamerDecoder::reconnect()
     std::string cachedPath = m_filePath;
     PixelFormat cachedFormat = m_outputFormat;
     int cachedThreads = m_threadCount;
+    DeviceType cachedDevice = m_deviceType;
 
     // Close resource structures
     close();
 
     // Restore m_filePath so close() calls don't discard it, and call initialize
     m_filePath = cachedPath;
-    bool success = initialize(cachedPath, cachedFormat, cachedThreads);
+    bool success = initialize(cachedPath, cachedFormat, cachedThreads, cachedDevice);
     if (success) {
         LOG(INFO) << "GStreamer: Successfully reconnected to live stream.";
         return true;

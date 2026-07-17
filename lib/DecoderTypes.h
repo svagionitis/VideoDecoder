@@ -30,6 +30,17 @@ enum class PixelFormat {
 };
 
 /**
+ * @enum DeviceType
+ * @brief Specifies the hardware device type for decoding acceleration.
+ */
+enum class DeviceType {
+    CPU, ///< Standard software decoding on the CPU
+    CUDA, ///< NVIDIA CUDA / NVDEC hardware acceleration
+    VAAPI, ///< VA-API (Intel/AMD on Linux)
+    D3D11VA ///< Direct3D11 Video Acceleration (Windows)
+};
+
+/**
  * @struct FrameInfo
  * @brief Contains raw frame data and metadata of a decoded video frame.
  */
@@ -54,6 +65,7 @@ struct VideoMetadata {
     double duration = 0.0; ///< Total duration of the video in seconds (0.0 if unknown or live stream)
     std::string codecName; ///< Name of the video codec (e.g. "h264", "hevc")
     PixelFormat format = PixelFormat::RGB24; ///< The selected output format of the decoder
+    DeviceType deviceType = DeviceType::CPU; ///< The hardware device type used by the decoder
 };
 
 /**

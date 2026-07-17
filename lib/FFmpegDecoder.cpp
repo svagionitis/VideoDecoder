@@ -27,13 +27,15 @@ FFmpegDecoder::~FFmpegDecoder()
     close();
 }
 
-bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount)
+bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount, DeviceType device)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
     m_filePath = std::string(filePath);
     m_threadCount = threadCount;
+    m_deviceType = device;
+    m_actualDeviceType = DeviceType::CPU;
 
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
@@ -80,6 +82,35 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     // Configure multithreading
     m_codecCtx->thread_count = m_threadCount;
     m_codecCtx->thread_type = FF_THREAD_FRAME | FF_THREAD_SLICE;
+
+    // Configure hardware acceleration
+    if (m_deviceType != DeviceType::CPU) {
+        AVHWDeviceType hwType = AV_HWDEVICE_TYPE_NONE;
+        if (m_deviceType == DeviceType::CUDA)
+            hwType = AV_HWDEVICE_TYPE_CUDA;
+        else if (m_deviceType == DeviceType::VAAPI)
+            hwType = AV_HWDEVICE_TYPE_VAAPI;
+        else if (m_deviceType == DeviceType::D3D11VA)
+            hwType = AV_HWDEVICE_TYPE_D3D11VA;
+
+        if (hwType != AV_HWDEVICE_TYPE_NONE) {
+            int hwErr = av_hwdevice_ctx_create(&m_hwDeviceCtx, hwType, nullptr, nullptr, 0);
+            if (hwErr >= 0) {
+                LOG(INFO) << "FFmpeg: Successfully created hardware device context for "
+                          << (m_deviceType == DeviceType::CUDA
+                                     ? "CUDA"
+                                     : (m_deviceType == DeviceType::VAAPI ? "VAAPI" : "D3D11VA"));
+                m_codecCtx->hw_device_ctx = av_buffer_ref(m_hwDeviceCtx);
+                m_actualDeviceType = m_deviceType;
+            } else {
+                LOG(WARNING) << "FFmpeg: Failed to create hardware device context. Falling back to CPU software "
+                                "decoding. (Error: "
+                             << hwErr << ")";
+                m_hwDeviceCtx = nullptr;
+                m_actualDeviceType = DeviceType::CPU;
+            }
+        }
+    }
 
     // Open decoder codec
     ret = avcodec_open2(m_codecCtx.get(), codec, nullptr);
@@ -144,9 +175,30 @@ bool FFmpegDecoder::decodeNextFrame()
         // Try to receive a decoded frame from the codec
         int ret = avcodec_receive_frame(m_codecCtx.get(), m_rawFrame.get());
         if (ret == 0) {
-            // Frame successfully decoded. Prepare output buffer.
+            // Frame successfully decoded.
+            AVFrame* frameToScale = m_rawFrame.get();
+            bool isHwFrame = (m_rawFrame->hw_frames_ctx != nullptr) || (m_rawFrame->format == AV_PIX_FMT_CUDA)
+                || (m_rawFrame->format == AV_PIX_FMT_VAAPI) || (m_rawFrame->format == AV_PIX_FMT_DXVA2_VLD)
+                || (m_rawFrame->format == AV_PIX_FMT_D3D11);
+
+            if (isHwFrame) {
+                if (!m_cpuFrame) {
+                    m_cpuFrame.reset(av_frame_alloc());
+                }
+                av_frame_unref(m_cpuFrame.get());
+                int transferRet = av_hwframe_transfer_data(m_cpuFrame.get(), m_rawFrame.get(), 0);
+                if (transferRet < 0) {
+                    LOG(ERROR) << "FFmpeg: Failed to transfer hardware frame to CPU (error: " << transferRet << ")";
+                    return false;
+                }
+                m_cpuFrame->pts = m_rawFrame->pts;
+                m_cpuFrame->best_effort_timestamp = m_rawFrame->best_effort_timestamp;
+                frameToScale = m_cpuFrame.get();
+            }
+
+            // Prepare output buffer.
             if (!allocateBufferAndSws(
-                    m_rawFrame->width, m_rawFrame->height, static_cast<AVPixelFormat>(m_rawFrame->format))) {
+                    frameToScale->width, frameToScale->height, static_cast<AVPixelFormat>(frameToScale->format))) {
                 return false;
             }
 
@@ -154,12 +206,12 @@ bool FFmpegDecoder::decodeNextFrame()
             uint8_t* dstData[4] = { m_rgbBuffer.data(), nullptr, nullptr, nullptr };
             int dstLinesize[4] = { m_width * 3, 0, 0, 0 };
 
-            sws_scale(m_swsCtx.get(), m_rawFrame->data, m_rawFrame->linesize, 0, m_height, dstData, dstLinesize);
+            sws_scale(m_swsCtx.get(), frameToScale->data, frameToScale->linesize, 0, m_height, dstData, dstLinesize);
 
             // Compute Presentation Timestamp (PTS)
             double pts = 0.0;
-            if (m_rawFrame->best_effort_timestamp != AV_NOPTS_VALUE) {
-                pts = m_rawFrame->best_effort_timestamp * av_q2d(m_formatCtx->streams[m_videoStreamIndex]->time_base);
+            if (frameToScale->best_effort_timestamp != AV_NOPTS_VALUE) {
+                pts = frameToScale->best_effort_timestamp * av_q2d(m_formatCtx->streams[m_videoStreamIndex]->time_base);
             }
             m_timestamp = pts;
 
@@ -280,6 +332,13 @@ void FFmpegDecoder::close()
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
     m_threadCount = 0;
+    if (m_hwDeviceCtx) {
+        av_buffer_unref(&m_hwDeviceCtx);
+        m_hwDeviceCtx = nullptr;
+    }
+    m_cpuFrame.reset();
+    m_deviceType = DeviceType::CPU;
+    m_actualDeviceType = DeviceType::CPU;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -293,6 +352,7 @@ VideoMetadata FFmpegDecoder::getVideoMetadata() const
     meta.duration = m_duration;
     meta.codecName = m_codecName;
     meta.format = m_outputFormat;
+    meta.deviceType = m_actualDeviceType;
     return meta;
 }
 
