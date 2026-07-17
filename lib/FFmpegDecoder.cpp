@@ -81,11 +81,32 @@ bool FFmpegDecoder::initialize(std::string_view filePath)
 
     m_width = m_codecCtx->width;
     m_height = m_codecCtx->height;
+
+    // Get average frame rate
+    AVStream* stream = m_formatCtx->streams[m_videoStreamIndex];
+    AVRational fps_rational = av_guess_frame_rate(m_formatCtx.get(), stream, nullptr);
+    if (fps_rational.den > 0) {
+        m_frameRate = av_q2d(fps_rational);
+    } else {
+        m_frameRate = 0.0;
+    }
+
+    // Get video duration
+    if (m_formatCtx->duration != AV_NOPTS_VALUE) {
+        m_duration = static_cast<double>(m_formatCtx->duration) / AV_TIME_BASE;
+    } else {
+        m_duration = 0.0;
+    }
+
+    // Get codec name
+    m_codecName = codec->name ? codec->name : "unknown";
+
     m_reachedEof = false;
     m_isInitialized = true;
 
     LOG(INFO) << "FFmpeg: Successfully initialized for file: " << filePath << " | Resolution: " << m_width << "x"
-              << m_height << " | Codec: " << codec->name;
+              << m_height << " | Frame Rate: " << m_frameRate << " FPS | Duration: " << m_duration
+              << "s | Codec: " << m_codecName;
     return true;
 }
 
@@ -189,8 +210,22 @@ void FFmpegDecoder::close()
     m_width = 0;
     m_height = 0;
     m_timestamp = 0.0;
+    m_frameRate = 0.0;
+    m_duration = 0.0;
+    m_codecName.clear();
     m_isInitialized = false;
     m_reachedEof = false;
+}
+
+VideoMetadata FFmpegDecoder::getVideoMetadata() const
+{
+    VideoMetadata meta;
+    meta.width = m_width;
+    meta.height = m_height;
+    meta.frameRate = m_frameRate;
+    meta.duration = m_duration;
+    meta.codecName = m_codecName;
+    return meta;
 }
 
 bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat srcFormat)

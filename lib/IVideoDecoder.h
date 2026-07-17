@@ -61,6 +61,13 @@ public:
     virtual FrameInfo getRawFrameData() const = 0;
 
     /**
+     * @brief Retrieves the static metadata and statistics of the loaded video.
+     *
+     * @return VideoMetadata structure containing resolution, frame rate, duration, and codec details.
+     */
+    virtual VideoMetadata getVideoMetadata() const = 0;
+
+    /**
      * @brief Closes the video file and releases all allocated decoder resources.
      */
     virtual void close() = 0;

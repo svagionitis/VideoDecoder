@@ -122,3 +122,42 @@ TEST_F(DecoderTestFixture, GStreamerDecodesFrames)
     EXPECT_GT(framesDecoded, 0);
     decoder->close();
 }
+
+// 5. Statistics/Metadata retrieval check
+TEST_F(DecoderTestFixture, RetrievesVideoMetadata)
+{
+    // FFmpeg metadata test
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_GT(meta.width, 0);
+            EXPECT_GT(meta.height, 0);
+            EXPECT_GT(meta.frameRate, 0.0);
+            EXPECT_GT(meta.duration, 0.0);
+            EXPECT_FALSE(meta.codecName.empty());
+            EXPECT_NE(meta.codecName, "unknown");
+            decoder->close();
+        }
+    }
+
+    // GStreamer metadata test
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_GT(meta.width, 0);
+            EXPECT_GT(meta.height, 0);
+            EXPECT_GT(meta.frameRate, 0.0);
+            EXPECT_GT(meta.duration, 0.0);
+            EXPECT_FALSE(meta.codecName.empty());
+            decoder->close();
+        }
+    }
+}

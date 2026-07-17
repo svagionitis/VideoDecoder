@@ -106,10 +106,83 @@ bool GStreamerDecoder::initialize(std::string_view filePath)
         return false;
     }
 
+    // Query width, height, and frame rate from appsink caps
+    GstPad* pad = gst_element_get_static_pad(m_sink, "sink");
+    if (pad) {
+        GstCaps* caps = gst_pad_get_current_caps(pad);
+        if (caps) {
+            GstStructure* structure = gst_caps_get_structure(caps, 0);
+            if (structure) {
+                int w = 0, h = 0;
+                if (gst_structure_get_int(structure, "width", &w)) {
+                    m_width = w;
+                }
+                if (gst_structure_get_int(structure, "height", &h)) {
+                    m_height = h;
+                }
+                int fps_num = 0, fps_den = 1;
+                if (gst_structure_get_fraction(structure, "framerate", &fps_num, &fps_den) && fps_den > 0) {
+                    m_frameRate = static_cast<double>(fps_num) / fps_den;
+                }
+            }
+            gst_caps_unref(caps);
+        }
+        gst_object_unref(pad);
+    }
+
+    // Query duration
+    gint64 duration_ns = 0;
+    if (gst_element_query_duration(m_pipeline.get(), GST_FORMAT_TIME, &duration_ns)) {
+        m_duration = static_cast<double>(duration_ns) / GST_SECOND;
+    } else {
+        m_duration = 0.0;
+    }
+
+    // Attempt to discover the codec name by searching for the decoder element in the bin
+    m_codecName = "unknown";
+    GstIterator* it = gst_bin_iterate_elements(GST_BIN(m_pipeline.get()));
+    if (it) {
+        GValue val = G_VALUE_INIT;
+        gboolean done = FALSE;
+        while (!done) {
+            switch (gst_iterator_next(it, &val)) {
+            case GST_ITERATOR_OK: {
+                GstElement* element = GST_ELEMENT(g_value_get_object(&val));
+                gchar* name = gst_element_get_name(element);
+                if (name) {
+                    std::string nameStr(name);
+                    g_free(name);
+
+                    // Decoder elements usually end with "dec" or contain "dec" in their factory/name
+                    // e.g. avdec_h264, vp9dec, jpegdec, but not decodebin / uridecodebin / appsink
+                    if (nameStr.find("dec") != std::string::npos && nameStr.find("decodebin") == std::string::npos
+                        && nameStr.find("uridecodebin") == std::string::npos) {
+                        m_codecName = nameStr;
+                        done = TRUE; // break early
+                    }
+                }
+                g_value_reset(&val);
+                break;
+            }
+            case GST_ITERATOR_RESYNC:
+                gst_iterator_resync(it);
+                break;
+            case GST_ITERATOR_ERROR:
+            case GST_ITERATOR_DONE:
+                done = TRUE;
+                break;
+            }
+        }
+        g_value_unset(&val);
+        gst_iterator_free(it);
+    }
+
     m_reachedEof = false;
     m_isInitialized = true;
 
-    LOG(INFO) << "GStreamer: Pipeline successfully initialized and pre-rolled for file: " << filePath;
+    LOG(INFO) << "GStreamer: Pipeline successfully initialized and pre-rolled for file: " << filePath
+              << " | Resolution: " << m_width << "x" << m_height << " | Frame Rate: " << m_frameRate
+              << " FPS | Duration: " << m_duration << "s | Codec: " << m_codecName;
     return true;
 }
 
@@ -245,8 +318,22 @@ void GStreamerDecoder::close()
     m_width = 0;
     m_height = 0;
     m_timestamp = 0.0;
+    m_frameRate = 0.0;
+    m_duration = 0.0;
+    m_codecName.clear();
     m_isInitialized = false;
     m_reachedEof = false;
+}
+
+VideoMetadata GStreamerDecoder::getVideoMetadata() const
+{
+    VideoMetadata meta;
+    meta.width = m_width;
+    meta.height = m_height;
+    meta.frameRate = m_frameRate;
+    meta.duration = m_duration;
+    meta.codecName = m_codecName;
+    return meta;
 }
 
 } // namespace videodecoder

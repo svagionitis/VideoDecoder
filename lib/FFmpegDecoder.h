@@ -7,6 +7,7 @@
 
 #include "IVideoDecoder.h"
 #include <memory>
+#include <string>
 #include <vector>
 
 // Forward declarations and extern C declarations for FFmpeg headers
@@ -108,6 +109,7 @@ public:
     bool initialize(std::string_view filePath) override;
     bool decodeNextFrame() override;
     FrameInfo getRawFrameData() const override;
+    VideoMetadata getVideoMetadata() const override;
     void close() override;
 
 private:
@@ -122,6 +124,9 @@ private:
     int m_width = 0; ///< Cached frame width
     int m_height = 0; ///< Cached frame height
     double m_timestamp = 0.0; ///< Presentation timestamp (PTS) in seconds
+    double m_frameRate = 0.0; ///< Video frame rate (FPS)
+    double m_duration = 0.0; ///< Video duration in seconds
+    std::string m_codecName; ///< Video codec name
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of file flag
 

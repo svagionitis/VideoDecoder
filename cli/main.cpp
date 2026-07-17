@@ -442,6 +442,16 @@ int main(int argc, char* argv[])
         return 1;
     }
 
+    // Retrieve and print video statistics
+    auto metadata = decoder->getVideoMetadata();
+    LOG(INFO) << "========================================";
+    LOG(INFO) << "CLI Client: Video Stream Statistics:";
+    LOG(INFO) << "  - Resolution: " << metadata.width << "x" << metadata.height;
+    LOG(INFO) << "  - Frame Rate: " << metadata.frameRate << " FPS";
+    LOG(INFO) << "  - Duration:   " << metadata.duration << " seconds";
+    LOG(INFO) << "  - Codec:      " << metadata.codecName;
+    LOG(INFO) << "========================================";
+
     // Initialize raw terminal mode for console/braille or native escape key interceptions
     std::unique_ptr<TerminalRawMode> rawMode;
     if (useConsole || useBraille || nativeGstreamer) {
