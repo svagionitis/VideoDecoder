@@ -111,6 +111,7 @@ public:
     FrameInfo getRawFrameData() const override;
     VideoMetadata getVideoMetadata() const override;
     DecoderPerformanceStats getPerformanceStats() const override;
+    bool seek(double timeInSeconds) override;
     void close() override;
 
 private:

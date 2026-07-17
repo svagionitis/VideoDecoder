@@ -367,4 +367,41 @@ DecoderPerformanceStats GStreamerDecoder::getPerformanceStats() const
     return stats;
 }
 
+bool GStreamerDecoder::seek(double timeInSeconds)
+{
+    if (!m_isInitialized || !m_pipeline) {
+        LOG(ERROR) << "GStreamer: Cannot seek. Decoder not initialized.";
+        return false;
+    }
+
+    // Check if the stream is a live stream (duration <= 0)
+    bool isLive = (m_duration <= 0.0);
+    if (isLive) {
+        LOG(WARNING) << "GStreamer: Seeking is unsupported for live network streams.";
+        return false;
+    }
+
+    if (timeInSeconds < 0.0 || timeInSeconds > m_duration) {
+        LOG(ERROR) << "GStreamer: Seek target " << timeInSeconds << "s is out of bounds [0, " << m_duration << "]";
+        return false;
+    }
+
+    gint64 targetNs = static_cast<gint64>(timeInSeconds * GST_SECOND);
+
+    // Simple seek: flush pipeline (removing old queued frames) and seek to nearest keyframe
+    gboolean success = gst_element_seek_simple(m_pipeline.get(), GST_FORMAT_TIME,
+        static_cast<GstSeekFlags>(GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_KEY_UNIT), targetNs);
+
+    if (!success) {
+        LOG(ERROR) << "GStreamer: Seek failed to target time " << timeInSeconds << "s";
+        return false;
+    }
+
+    m_reachedEof = false;
+    m_timestamp = timeInSeconds;
+
+    VLOG(1) << "GStreamer: Successfully seeked to timestamp " << timeInSeconds << "s";
+    return true;
+}
+
 } // namespace videodecoder

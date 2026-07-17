@@ -268,6 +268,57 @@ DecoderPerformanceStats FFmpegDecoder::getPerformanceStats() const
     return stats;
 }
 
+bool FFmpegDecoder::seek(double timeInSeconds)
+{
+    if (!m_isInitialized || !m_formatCtx || m_videoStreamIndex < 0) {
+        LOG(ERROR) << "FFmpeg: Cannot seek. Decoder not initialized.";
+        return false;
+    }
+
+    // Check if the stream is a live stream (e.g. RTSP or duration <= 0)
+    bool isLive = (m_duration <= 0.0);
+    if (m_formatCtx->iformat && m_formatCtx->iformat->name) {
+        std::string formatName(m_formatCtx->iformat->name);
+        if (formatName.find("rtsp") != std::string::npos || formatName.find("sdp") != std::string::npos) {
+            isLive = true;
+        }
+    }
+
+    if (isLive) {
+        LOG(WARNING) << "FFmpeg: Seeking is unsupported for live network streams.";
+        return false;
+    }
+
+    if (timeInSeconds < 0.0 || timeInSeconds > m_duration) {
+        LOG(ERROR) << "FFmpeg: Seek target " << timeInSeconds << "s is out of bounds [0, " << m_duration << "]";
+        return false;
+    }
+
+    AVStream* stream = m_formatCtx->streams[m_videoStreamIndex];
+    int64_t targetPts = static_cast<int64_t>(timeInSeconds / av_q2d(stream->time_base));
+
+    // Seek to keyframe at or before target timestamp
+    int ret = av_seek_frame(m_formatCtx.get(), m_videoStreamIndex, targetPts, AVSEEK_FLAG_BACKWARD);
+    if (ret < 0) {
+        LOG(ERROR) << "FFmpeg: Seek failed to target time " << timeInSeconds << "s (error: " << ret << ")";
+        return false;
+    }
+
+    // Flush internal codec buffers to prevent residual decoding artifacts from old frames
+    avcodec_flush_buffers(m_codecCtx.get());
+
+    // Clean up cached packet state
+    if (m_packet) {
+        av_packet_unref(m_packet.get());
+    }
+
+    m_reachedEof = false;
+    m_timestamp = timeInSeconds; // update cached timestamp representation
+
+    VLOG(1) << "FFmpeg: Successfully seeked to timestamp " << timeInSeconds << "s";
+    return true;
+}
+
 bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat srcFormat)
 {
     if (width <= 0 || height <= 0) {

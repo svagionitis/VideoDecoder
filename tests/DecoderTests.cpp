@@ -225,3 +225,49 @@ TEST_F(DecoderTestFixture, MeasuresDecoderLatency)
         }
     }
 }
+
+// 7. Seek functionality check
+TEST_F(DecoderTestFixture, SeeksSuccessfully)
+{
+    // FFmpeg seek test
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            EXPECT_TRUE(decoder->seek(1.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_GE(frame.timestamp, 0.0);
+
+            // Check that seeking out of bounds fails
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_FALSE(decoder->seek(-1.0));
+            EXPECT_FALSE(decoder->seek(meta.duration + 5.0));
+
+            decoder->close();
+        }
+    }
+
+    // GStreamer seek test
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+
+        bool initialized = decoder->initialize(TEST_INPUT_PATH);
+        if (initialized) {
+            EXPECT_TRUE(decoder->seek(1.0));
+            EXPECT_TRUE(decoder->decodeNextFrame());
+            auto frame = decoder->getRawFrameData();
+            EXPECT_GE(frame.timestamp, 0.0);
+
+            // Check that seeking out of bounds fails
+            auto meta = decoder->getVideoMetadata();
+            EXPECT_FALSE(decoder->seek(-1.0));
+            EXPECT_FALSE(decoder->seek(meta.duration + 5.0));
+
+            decoder->close();
+        }
+    }
+}

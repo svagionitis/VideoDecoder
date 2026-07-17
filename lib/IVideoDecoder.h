@@ -75,6 +75,16 @@ public:
     virtual DecoderPerformanceStats getPerformanceStats() const = 0;
 
     /**
+     * @brief Seeks to a specific timestamp in the video stream.
+     *
+     * @param timeInSeconds The target timestamp in seconds.
+     * @return true if the seek operation succeeded, false otherwise.
+     * @note Seeking is typically keyframe-accurate (seeks to the nearest keyframe at or before the timestamp)
+     *       and flushes internal decoder buffers. Seeking has no effect and returns false for live streams.
+     */
+    virtual bool seek(double timeInSeconds) = 0;
+
+    /**
      * @brief Closes the video file and releases all allocated decoder resources.
      */
     virtual void close() = 0;
