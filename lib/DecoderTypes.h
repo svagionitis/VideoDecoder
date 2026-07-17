@@ -78,4 +78,23 @@ struct DecoderPerformanceStats {
     uint64_t totalDecodedFrames = 0; ///< Total number of frames successfully decoded
 };
 
+/**
+ * @class IFrameProcessor
+ * @brief Interface for processing decoded video frames in-place.
+ */
+class IFrameProcessor {
+public:
+    virtual ~IFrameProcessor() = default;
+
+    /**
+     * @brief Processes a decoded frame's raw pixel buffer in-place.
+     *
+     * @param data Pointer to the raw frame buffer (e.g. packed RGB24/BGR24).
+     * @param width Frame width in pixels.
+     * @param height Frame height in pixels.
+     * @param format The current pixel format of the frame buffer.
+     */
+    virtual void process(uint8_t* data, int width, int height, PixelFormat format) = 0;
+};
+
 } // namespace videodecoder

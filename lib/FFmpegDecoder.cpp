@@ -208,6 +208,13 @@ bool FFmpegDecoder::decodeNextFrame()
 
             sws_scale(m_swsCtx.get(), frameToScale->data, frameToScale->linesize, 0, m_height, dstData, dstLinesize);
 
+            // Apply frame processors (filters) on the output buffer in-place
+            for (auto& processor : m_processors) {
+                if (processor) {
+                    processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
+                }
+            }
+
             // Compute Presentation Timestamp (PTS)
             double pts = 0.0;
             if (frameToScale->best_effort_timestamp != AV_NOPTS_VALUE) {
@@ -332,6 +339,7 @@ void FFmpegDecoder::close()
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
     m_threadCount = 0;
+    clearFrameProcessors();
     if (m_hwDeviceCtx) {
         av_buffer_unref(&m_hwDeviceCtx);
         m_hwDeviceCtx = nullptr;
@@ -503,6 +511,18 @@ bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat sr
         VLOG(1) << "FFmpeg: Reallocated scaling context and buffer for resolution " << m_width << "x" << m_height;
     }
     return true;
+}
+
+void FFmpegDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
+{
+    if (processor) {
+        m_processors.push_back(processor);
+    }
+}
+
+void FFmpegDecoder::clearFrameProcessors()
+{
+    m_processors.clear();
 }
 
 } // namespace videodecoder

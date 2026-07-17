@@ -7,6 +7,7 @@
 
 #include "DecoderTypes.h"
 #include "Visibility.h"
+#include <memory>
 #include <string_view>
 #include <vector>
 
@@ -97,6 +98,18 @@ public:
      * @return true if successful, false otherwise.
      */
     virtual bool setDecodingThreadAffinity(const std::vector<int>& cpuIds) = 0;
+
+    /**
+     * @brief Adds a post-processing frame processor to the decoder.
+     *
+     * @param processor Shared pointer to the frame processor implementation.
+     */
+    virtual void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) = 0;
+
+    /**
+     * @brief Clears all registered post-processing frame processors.
+     */
+    virtual void clearFrameProcessors() = 0;
 
     /**
      * @brief Closes the video file and releases all allocated decoder resources.

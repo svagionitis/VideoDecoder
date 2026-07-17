@@ -146,6 +146,8 @@ public:
     DecoderPerformanceStats getPerformanceStats() const override;
     bool seek(double timeInSeconds) override;
     bool setDecodingThreadAffinity(const std::vector<int>& cpuIds) override;
+    void addFrameProcessor(std::shared_ptr<IFrameProcessor> processor) override;
+    void clearFrameProcessors() override;
     void close() override;
 
 private:
@@ -169,6 +171,7 @@ private:
     int m_threadCount = 0; ///< Number of threads for decoding
     DeviceType m_deviceType = DeviceType::CPU; ///< Requested hardware acceleration device
     DeviceType m_actualDeviceType = DeviceType::CPU; ///< Actual hardware acceleration device used
+    std::vector<std::shared_ptr<IFrameProcessor>> m_processors; ///< List of post-processing frame filters
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of stream flag
 

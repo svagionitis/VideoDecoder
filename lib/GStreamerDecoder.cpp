@@ -381,6 +381,13 @@ bool GStreamerDecoder::decodeNextFrame()
         std::memcpy(m_rgbBuffer.data(), map.data(), std::min(map.size(), expectedSize));
     }
 
+    // Apply frame processors (filters) on the output buffer in-place
+    for (auto& processor : m_processors) {
+        if (processor) {
+            processor->process(m_rgbBuffer.data(), m_width, m_height, m_outputFormat);
+        }
+    }
+
     // Extract Presentation Timestamp (PTS)
     double pts = 0.0;
     GstClockTime bufferPts = GST_BUFFER_PTS(buffer);
@@ -437,6 +444,7 @@ void GStreamerDecoder::close()
     m_threadCount = 0;
     m_deviceType = DeviceType::CPU;
     m_actualDeviceType = DeviceType::CPU;
+    clearFrameProcessors();
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -563,6 +571,18 @@ bool GStreamerDecoder::reconnect()
     }
     LOG(ERROR) << "GStreamer: Reconnection failed.";
     return false;
+}
+
+void GStreamerDecoder::addFrameProcessor(std::shared_ptr<IFrameProcessor> processor)
+{
+    if (processor) {
+        m_processors.push_back(processor);
+    }
+}
+
+void GStreamerDecoder::clearFrameProcessors()
+{
+    m_processors.clear();
 }
 
 } // namespace videodecoder
