@@ -94,9 +94,9 @@ ninja -C build
 ## Execution
 
 ### Generating a Test Video
-Use FFmpeg to output a dummy test video for traversal checks:
+Use FFmpeg to output a dummy 11-second test video for unit tests and traversal checks:
 ```bash
-ffmpeg -y -f lavfi -i testsrc=duration=5:size=320x240:rate=30 -c:v libx264 ./tests/test_input.mp4
+ffmpeg -y -f lavfi -i testsrc=duration=11:size=320x240:rate=30 -c:v libx264 -pix_fmt yuv420p ./tests/test_input.mp4
 ```
 
 ### Running the Unit Tests
