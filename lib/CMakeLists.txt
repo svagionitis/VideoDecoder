@@ -35,12 +35,23 @@ if(NOT IS_WINDOWS)
         PkgConfig::GLOG
     )
 else()
-    target_include_directories(VideoDecoder PRIVATE ${FFMPEG_INCLUDE_DIR} ${GST_INCLUDE_DIR})
+    target_include_directories(VideoDecoder SYSTEM PRIVATE
+        ${FFMPEG_INCLUDE_DIR}
+        ${GST_INCLUDE_DIR}
+        ${GLIB_INCLUDE_DIR}
+        ${GLIBCONFIG_INCLUDE_DIR}
+    )
     target_link_libraries(VideoDecoder PRIVATE
         ${AVCODEC_LIBRARY}
         ${AVFORMAT_LIBRARY}
         ${AVUTIL_LIBRARY}
         ${SWSCALE_LIBRARY}
+        ${GST_LIBRARY}
+        ${GST_APP_LIBRARY}
+        ${GST_VIDEO_LIBRARY}
+        ${GLIB_LIBRARY}
+        ${GOBJECT_LIBRARY}
         glog::glog
     )
 endif()
+

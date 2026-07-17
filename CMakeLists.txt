@@ -45,18 +45,27 @@ else()
     # On Windows, we try to find libraries via custom path variables or CMake finders.
 
     # FFmpeg fallback
-    find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "$ENV{FFMPEG_ROOT}/include")
-    find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "$ENV{FFMPEG_ROOT}/lib")
-    find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "$ENV{FFMPEG_ROOT}/lib")
-    find_library(AVUTIL_LIBRARY NAMES avutil PATHS "$ENV{FFMPEG_ROOT}/lib")
-    find_library(SWSCALE_LIBRARY NAMES swscale PATHS "$ENV{FFMPEG_ROOT}/lib")
+    find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "${FFMPEG_ROOT}/include" "$ENV{FFMPEG_ROOT}/include")
+    find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+    find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+    find_library(AVUTIL_LIBRARY NAMES avutil PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+    find_library(SWSCALE_LIBRARY NAMES swscale PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
 
-    # GStreamer fallback
-    find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0")
+    # GStreamer and GLib fallback
+    find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "${GSTREAMER_ROOT}/include/gstreamer-1.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0" PATH_SUFFIXES "gstreamer-1.0")
+    find_path(GLIB_INCLUDE_DIR NAMES glib.h PATHS "${GSTREAMER_ROOT}/include/glib-2.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/glib-2.0" PATH_SUFFIXES "glib-2.0")
+    find_path(GLIBCONFIG_INCLUDE_DIR NAMES glibconfig.h PATHS "${GSTREAMER_ROOT}/lib/glib-2.0/include" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib/glib-2.0/include" PATH_SUFFIXES "glib-2.0/include")
+
+    find_library(GST_LIBRARY NAMES gstreamer-1.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+    find_library(GST_APP_LIBRARY NAMES gstapp-1.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+    find_library(GST_VIDEO_LIBRARY NAMES gstvideo-1.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+    find_library(GLIB_LIBRARY NAMES glib-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
+    find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
 
     # glog fallback
     find_package(glog CONFIG REQUIRED)
 endif()
+
 
 
 # Add modular components via subdirectories

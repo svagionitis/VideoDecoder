@@ -26,5 +26,9 @@ target_link_libraries(VideoFilters PUBLIC
 
 # Enforce compiler warning and hardening options if defined in root project
 if(EXISTS "${CMAKE_SOURCE_DIR}/cmake/CompilerFlags.cmake")
-    target_compile_options(VideoFilters PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    if(MSVC)
+        target_compile_options(VideoFilters PRIVATE /W4 /WX /wd4251)
+    else()
+        target_compile_options(VideoFilters PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
 endif()
