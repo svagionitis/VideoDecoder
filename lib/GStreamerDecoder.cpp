@@ -50,12 +50,26 @@ bool GStreamerDecoder::initialize(std::string_view filePath)
         escapedPath += c;
     }
 
-    // Define pipeline: filesrc -> decodebin -> videoconvert -> appsink (RGB24 format)
-    std::string pipelineDesc = "filesrc location=\"" + escapedPath
-        + "\" ! "
-          "decodebin ! "
-          "videoconvert ! "
-          "appsink name=sink caps=\"video/x-raw, format=RGB\"";
+    // Determine if input is a URI (e.g., rtsp://, http://) or a local file path
+    std::string sourceBin;
+    if (escapedPath.find("://") != std::string::npos) {
+        sourceBin = "uridecodebin uri=\"" + escapedPath + "\"";
+    } else {
+        sourceBin = "filesrc location=\"" + escapedPath + "\" ! decodebin";
+    }
+
+    // Check environment flag to see if we should split the stream to GStreamer's native autovideosink
+    const char* useNativeSink = std::getenv("GST_USE_NATIVE_SINK");
+    bool enableNative = (useNativeSink && std::string(useNativeSink) == "1");
+
+    std::string pipelineDesc;
+    if (enableNative) {
+        pipelineDesc = sourceBin
+            + " ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! appsink name=sink caps=\"video/x-raw, "
+              "format=RGB\"";
+    } else {
+        pipelineDesc = sourceBin + " ! videoconvert ! appsink name=sink caps=\"video/x-raw, format=RGB\"";
+    }
 
     GError* error = nullptr;
     GstElement* pipelineRaw = gst_parse_launch(pipelineDesc.c_str(), &error);
