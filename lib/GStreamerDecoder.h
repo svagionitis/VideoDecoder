@@ -162,8 +162,16 @@ private:
     double m_lastDecodeTimeMs = 0.0; ///< Processing latency of the last decoded frame in milliseconds
     double m_totalDecodeTimeMs = 0.0; ///< Cumulative processing latency of all frames in milliseconds
     uint64_t m_decodedFramesCount = 0; ///< Cumulative count of successfully decoded frames
+    std::string m_filePath; ///< Target video stream path cached for reconnection
+    int m_reconnectAttempts = 0; ///< Retry count for live stream reconnection
     bool m_isInitialized = false; ///< Status flag
     bool m_reachedEof = false; ///< End of stream flag
+
+    /**
+     * @brief Private helper to reinitialize the GStreamer pipeline for live streams.
+     * @return true if reconnection succeeded, false otherwise.
+     */
+    bool reconnect();
 
     /**
      * @brief Static helper to initialize GStreamer runtime exactly once.

@@ -309,3 +309,23 @@ TEST_F(DecoderTestFixture, OutputFormatSelection)
         }
     }
 }
+
+// 9. Live stream initialization check
+TEST_F(DecoderTestFixture, SimulatesLiveStreamInitialization)
+{
+    // FFmpeg dummy rtsp check
+    {
+        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        ASSERT_NE(decoder, nullptr);
+        // Should return false because connection will fail, but must not crash
+        EXPECT_FALSE(decoder->initialize("rtsp://127.0.0.1:9999/live.sdp"));
+    }
+
+    // GStreamer dummy rtsp check
+    {
+        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        ASSERT_NE(decoder, nullptr);
+        // Should return false because connection will fail, but must not crash
+        EXPECT_FALSE(decoder->initialize("rtsp://127.0.0.1:9999/live.sdp"));
+    }
+}

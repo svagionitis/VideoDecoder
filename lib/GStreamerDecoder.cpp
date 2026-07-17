@@ -9,6 +9,7 @@
 #include <cstring>
 #include <glog/logging.h>
 #include <gst/video/video.h>
+#include <thread>
 
 namespace videodecoder {
 
@@ -43,6 +44,7 @@ bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format)
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
+    m_filePath = std::string(filePath);
 
     // Escape file path for pipeline construction
     std::string escapedPath;
@@ -208,8 +210,13 @@ bool GStreamerDecoder::decodeNextFrame()
     }
 
     // Pull next sample from appsink (blocking call)
-    GstSample* sampleRaw = gst_app_sink_pull_sample(GST_APP_SINK(m_sink));
-    if (!sampleRaw) {
+    GstSample* sampleRaw = nullptr;
+    while (true) {
+        sampleRaw = gst_app_sink_pull_sample(GST_APP_SINK(m_sink));
+        if (sampleRaw) {
+            break;
+        }
+
         // Stream ended or pipeline error. Retrieve message from bus.
         GstBus* bus = gst_element_get_bus(m_pipeline.get());
         if (bus) {
@@ -232,6 +239,20 @@ bool GStreamerDecoder::decodeNextFrame()
             }
             gst_object_unref(bus);
         }
+
+        bool isLive = (m_duration <= 0.0);
+        if (isLive && m_reconnectAttempts < 3) {
+            LOG(WARNING) << "GStreamer: Live stream disconnected. "
+                         << "Attempting auto-reconnection (attempt " << m_reconnectAttempts + 1 << "/3)...";
+            m_reconnectAttempts++;
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+            if (reconnect()) {
+                m_reconnectAttempts = 0;
+                // Retry pulling sample
+                continue;
+            }
+        }
+
         m_reachedEof = true;
         return false;
     }
@@ -345,6 +366,7 @@ void GStreamerDecoder::close()
     m_lastDecodeTimeMs = 0.0;
     m_totalDecodeTimeMs = 0.0;
     m_decodedFramesCount = 0;
+    m_reconnectAttempts = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -409,6 +431,28 @@ bool GStreamerDecoder::seek(double timeInSeconds)
 
     VLOG(1) << "GStreamer: Successfully seeked to timestamp " << timeInSeconds << "s";
     return true;
+}
+
+bool GStreamerDecoder::reconnect()
+{
+    LOG(INFO) << "GStreamer: Reconnecting to source: " << m_filePath;
+
+    // Cache the connection parameters
+    std::string cachedPath = m_filePath;
+    PixelFormat cachedFormat = m_outputFormat;
+
+    // Close resource structures
+    close();
+
+    // Restore m_filePath so close() calls don't discard it, and call initialize
+    m_filePath = cachedPath;
+    bool success = initialize(cachedPath, cachedFormat);
+    if (success) {
+        LOG(INFO) << "GStreamer: Successfully reconnected to live stream.";
+        return true;
+    }
+    LOG(ERROR) << "GStreamer: Reconnection failed.";
+    return false;
 }
 
 } // namespace videodecoder

@@ -6,6 +6,7 @@
 #include "FFmpegDecoder.h"
 #include <chrono>
 #include <glog/logging.h>
+#include <thread>
 
 namespace videodecoder {
 
@@ -24,6 +25,7 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format)
     close();
     auto start = std::chrono::high_resolution_clock::now();
     m_outputFormat = format;
+    m_filePath = std::string(filePath);
 
     AVFormatContext* formatCtxRaw = nullptr;
     std::string pathStr(filePath);
@@ -192,6 +194,27 @@ bool FFmpegDecoder::decodeNextFrame()
                     return false;
                 }
             } else {
+                // Read failed. Check if we should attempt reconnection.
+                bool isLive = (m_duration <= 0.0);
+                if (m_formatCtx->iformat && m_formatCtx->iformat->name) {
+                    std::string formatName(m_formatCtx->iformat->name);
+                    if (formatName.find("rtsp") != std::string::npos || formatName.find("sdp") != std::string::npos) {
+                        isLive = true;
+                    }
+                }
+
+                if (isLive && m_reconnectAttempts < 3) {
+                    LOG(WARNING) << "FFmpeg: Read packet error (" << readRet << ") on live stream. "
+                                 << "Attempting auto-reconnection (attempt " << m_reconnectAttempts + 1 << "/3)...";
+                    m_reconnectAttempts++;
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+                    if (reconnect()) {
+                        m_reconnectAttempts = 0;
+                        // Continue packet-reading loop in reconnected stream
+                        continue;
+                    }
+                }
+
                 LOG(ERROR) << "FFmpeg: Error reading packet from stream (error: " << readRet << ")";
                 return false;
             }
@@ -243,6 +266,7 @@ void FFmpegDecoder::close()
     m_lastDecodeTimeMs = 0.0;
     m_totalDecodeTimeMs = 0.0;
     m_decodedFramesCount = 0;
+    m_reconnectAttempts = 0;
     m_isInitialized = false;
     m_reachedEof = false;
 }
@@ -321,6 +345,28 @@ bool FFmpegDecoder::seek(double timeInSeconds)
 
     VLOG(1) << "FFmpeg: Successfully seeked to timestamp " << timeInSeconds << "s";
     return true;
+}
+
+bool FFmpegDecoder::reconnect()
+{
+    LOG(INFO) << "FFmpeg: Reconnecting to source: " << m_filePath;
+
+    // Cache the connection parameters
+    std::string cachedPath = m_filePath;
+    PixelFormat cachedFormat = m_outputFormat;
+
+    // Close resource structures
+    close();
+
+    // Restore m_filePath so close() calls don't discard it, and call initialize
+    m_filePath = cachedPath;
+    bool success = initialize(cachedPath, cachedFormat);
+    if (success) {
+        LOG(INFO) << "FFmpeg: Successfully reconnected to live stream.";
+        return true;
+    }
+    LOG(ERROR) << "FFmpeg: Reconnection failed.";
+    return false;
 }
 
 bool FFmpegDecoder::allocateBufferAndSws(int width, int height, AVPixelFormat srcFormat)
