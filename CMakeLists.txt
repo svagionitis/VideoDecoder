@@ -1,4 +1,24 @@
 cmake_minimum_required(VERSION 3.16)
+
+if(WIN32 AND NOT CMAKE_TOOLCHAIN_FILE)
+    # Check known paths for vcpkg.cmake
+    set(VCPKG_CANDIDATE_PATHS
+        "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "$ENV{USERPROFILE}/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "D:/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "$ENV{USERPROFILE}/vcpkg/scripts/buildsystems/vcpkg.cmake"
+        "C:/src/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    )
+    foreach(candidate IN LISTS VCPKG_CANDIDATE_PATHS)
+        if(EXISTS "${candidate}")
+            set(CMAKE_TOOLCHAIN_FILE "${candidate}" CACHE FILEPATH "vcpkg toolchain file")
+            message(STATUS "Auto-detected vcpkg toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
+            break()
+        endif()
+    endforeach()
+endif()
+
 project(VideoDecoder LANGUAGES C CXX)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -42,14 +62,21 @@ if(NOT IS_WINDOWS)
     # Google Logging (glog)
     pkg_check_modules(GLOG IMPORTED_TARGET libglog)
 else()
-    # On Windows, we try to find libraries via custom path variables or CMake finders.
+    # On Windows, try to find libraries via find_package first (vcpkg), then fallback.
+    find_package(FFmpeg COMPONENTS avcodec avformat avutil swscale QUIET)
+    find_package(glog CONFIG QUIET)
 
-    # FFmpeg fallback
-    find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "${FFMPEG_ROOT}/include" "$ENV{FFMPEG_ROOT}/include")
-    find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
-    find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
-    find_library(AVUTIL_LIBRARY NAMES avutil PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
-    find_library(SWSCALE_LIBRARY NAMES swscale PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+    if(FFmpeg_FOUND)
+        set(FFMPEG_VIA_FIND_PACKAGE ON)
+    else()
+        set(FFMPEG_VIA_FIND_PACKAGE OFF)
+        # FFmpeg manual fallback
+        find_path(FFMPEG_INCLUDE_DIR NAMES libavcodec/avcodec.h PATHS "${FFMPEG_ROOT}/include" "$ENV{FFMPEG_ROOT}/include")
+        find_library(AVCODEC_LIBRARY NAMES avcodec PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+        find_library(AVFORMAT_LIBRARY NAMES avformat PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+        find_library(AVUTIL_LIBRARY NAMES avutil PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+        find_library(SWSCALE_LIBRARY NAMES swscale PATHS "${FFMPEG_ROOT}/lib" "$ENV{FFMPEG_ROOT}/lib")
+    endif()
 
     # GStreamer and GLib fallback
     find_path(GST_INCLUDE_DIR NAMES gst/gst.h PATHS "${GSTREAMER_ROOT}/include/gstreamer-1.0" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/include/gstreamer-1.0" PATH_SUFFIXES "gstreamer-1.0")
@@ -61,9 +88,6 @@ else()
     find_library(GST_VIDEO_LIBRARY NAMES gstvideo-1.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
     find_library(GLIB_LIBRARY NAMES glib-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
     find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
-
-    # glog fallback
-    find_package(glog CONFIG QUIET)
 endif()
 
 # Check if glog is found, otherwise use FetchContent fallback

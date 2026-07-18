@@ -1,0 +1,68 @@
+{
+  "name": "videodecoder",
+  "version-string": "1.0.0",
+  "dependencies": [
+    {
+      "name": "ffmpeg",
+      "features": [
+        "all-gpl",
+        "ffmpeg",
+        "ffplay",
+        "ffprobe",
+        "nvcodec",
+        "opencl"
+      ]
+    },
+    "glog",
+    {
+      "name": "gstreamer",
+      "features": [
+        "aes",
+        "amd-amf",
+        "dtls",
+        "gl",
+        "hls",
+        "libav",
+        "nvcodec",
+        "plugins-bad",
+        "plugins-base",
+        "plugins-good",
+        "plugins-ugly",
+        "x264"
+      ]
+    },
+    "gtest",
+    {
+      "name": "opencv",
+      "features": [
+        "calib3d",
+        "contrib",
+        "core",
+        "cuda",
+        "cudnn",
+        "directml",
+        "dnn",
+        "dnn-cuda",
+        "dshow",
+        "eigen",
+        "ffmpeg",
+        "fs",
+        "gapi",
+        "gstreamer",
+        "highgui",
+        "intrinsics",
+        "jpeg",
+        "msmf",
+        "opencl",
+        "openmp",
+        "png",
+        "quirc",
+        "thread",
+        "tiff",
+        "webp",
+        "win32ui"
+      ]
+    },
+    "sdl2"
+  ]
+}

@@ -2,7 +2,10 @@
 cmake_minimum_required(VERSION 3.16)
 
 # Find GTest dependency or download via FetchContent
-find_package(GTest QUIET)
+find_package(GTest CONFIG QUIET)
+if(NOT GTest_FOUND)
+    find_package(GTest QUIET)
+endif()
 
 if(NOT GTest_FOUND)
     include(FetchContent)
