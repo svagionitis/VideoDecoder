@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
+# Skip Qt Creator's buggy automatic vcpkg setup and use our own logic below
+set(QT_CREATOR_SKIP_VCPKG_SETUP ON)
+
 if(WIN32 AND NOT CMAKE_TOOLCHAIN_FILE)
     # Check known paths for vcpkg.cmake
     set(VCPKG_CANDIDATE_PATHS
