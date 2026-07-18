@@ -3,6 +3,11 @@ cmake_minimum_required(VERSION 3.16)
 # Skip Qt Creator's buggy automatic vcpkg setup and use our own logic below
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON)
 
+# Self-healing: if CMAKE_TOOLCHAIN_FILE was incorrectly set to a directory (common Qt Creator bug), correct it to the actual toolchain file path
+if(CMAKE_TOOLCHAIN_FILE AND IS_DIRECTORY "${CMAKE_TOOLCHAIN_FILE}")
+    set(CMAKE_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}/scripts/buildsystems/vcpkg.cmake" CACHE FILEPATH "vcpkg toolchain file" FORCE)
+endif()
+
 if(WIN32 AND NOT CMAKE_TOOLCHAIN_FILE)
     # Check known paths for vcpkg.cmake
     set(VCPKG_CANDIDATE_PATHS
