@@ -12,6 +12,7 @@
 #include "IVideoDecoder.h"
 #include <gst/app/gstappsink.h>
 #include <gst/gst.h>
+#include <gst/pbutils/pbutils.h>
 
 namespace videodecoder {
 
@@ -180,6 +181,11 @@ private:
      * @return true if reconnection succeeded, false otherwise.
      */
     bool reconnect();
+
+    /**
+     * @brief Private helper containing the core initialization logic.
+     */
+    bool initializeInternal(std::string_view filePath, PixelFormat format, int threadCount, DeviceType device);
 
     /**
      * @brief Static helper to initialize GStreamer runtime exactly once.

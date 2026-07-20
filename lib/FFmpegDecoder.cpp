@@ -123,8 +123,25 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     // Open decoder codec
     ret = avcodec_open2(m_codecCtx.get(), codec, nullptr);
     if (ret < 0) {
-        LOG(ERROR) << "FFmpeg: Failed to open codec (error: " << ret << ")";
-        return false;
+        if (m_deviceType != DeviceType::CPU) {
+            LOG(WARNING) << "FFmpeg: Failed to open codec with hardware acceleration (error: " << ret
+                         << "). Retrying with CPU software decoding.";
+            if (m_codecCtx->hw_device_ctx) {
+                av_buffer_unref(&m_codecCtx->hw_device_ctx);
+                m_codecCtx->hw_device_ctx = nullptr;
+            }
+            if (m_hwDeviceCtx) {
+                av_buffer_unref(&m_hwDeviceCtx);
+                m_hwDeviceCtx = nullptr;
+            }
+            m_actualDeviceType = DeviceType::CPU;
+            m_deviceType = DeviceType::CPU;
+            ret = avcodec_open2(m_codecCtx.get(), codec, nullptr);
+        }
+        if (ret < 0) {
+            LOG(ERROR) << "FFmpeg: Failed to open codec (error: " << ret << ")";
+            return false;
+        }
     }
 
     // Allocate resources
