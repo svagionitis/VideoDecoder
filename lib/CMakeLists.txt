@@ -36,11 +36,11 @@ if(NOT IS_WINDOWS)
     )
 else()
     if(FFMPEG_VIA_FIND_PACKAGE)
+        target_include_directories(VideoDecoder SYSTEM PRIVATE
+            ${FFMPEG_INCLUDE_DIRS}
+        )
         target_link_libraries(VideoDecoder PRIVATE
-            FFmpeg::avcodec
-            FFmpeg::avformat
-            FFmpeg::avutil
-            FFmpeg::swscale
+            ${FFMPEG_LIBRARIES}
         )
     else()
         target_include_directories(VideoDecoder SYSTEM PRIVATE

@@ -84,10 +84,10 @@ if(NOT IS_WINDOWS)
     pkg_check_modules(GLOG IMPORTED_TARGET libglog)
 else()
     # On Windows, try to find libraries via find_package first (vcpkg), then fallback.
-    find_package(FFmpeg COMPONENTS avcodec avformat avutil swscale QUIET)
+    find_package(FFMPEG COMPONENTS avcodec avformat avutil swscale QUIET)
     find_package(glog CONFIG QUIET)
 
-    if(FFmpeg_FOUND)
+    if(FFmpeg_FOUND OR FFMPEG_FOUND)
         set(FFMPEG_VIA_FIND_PACKAGE ON)
     else()
         set(FFMPEG_VIA_FIND_PACKAGE OFF)
