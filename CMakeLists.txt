@@ -29,6 +29,19 @@ endif()
 
 project(VideoDecoder LANGUAGES C CXX)
 
+# Set standard build profiles/configurations
+set(ALLOWED_BUILD_TYPES Debug Release RelWithDebInfo MinSizeRel)
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(DEFAULT_BUILD_TYPE "Release")
+    message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
+    set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE STRING "Choose the type of build." FORCE)
+    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "${ALLOWED_BUILD_TYPES}")
+endif()
+
+if(CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_CONFIGURATION_TYPES "${ALLOWED_BUILD_TYPES}" CACHE STRING "Supported build configuration types" FORCE)
+endif()
+
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 set(CMAKE_CXX_STANDARD 17)
