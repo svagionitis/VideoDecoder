@@ -41,9 +41,9 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     std::string pathStr(filePath);
 
     AVDictionary* options = nullptr;
-    // Set socket and TCP connection timeout to 2 seconds (in microseconds)
-    av_dict_set(&options, "stimeout", "2000000", 0);
-    av_dict_set(&options, "timeout", "2000000", 0);
+    // Set socket and TCP connection timeout to 1 second (in microseconds)
+    av_dict_set(&options, "stimeout", "1000000", 0);
+    av_dict_set(&options, "rw_timeout", "1000000", 0);
 
     // Open input stream
     int ret = avformat_open_input(&formatCtxRaw, pathStr.c_str(), nullptr, &options);
