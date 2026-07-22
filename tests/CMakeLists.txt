@@ -26,6 +26,7 @@ endif()
 
 add_executable(VideoDecoderTests
     DecoderTests.cpp
+    SPSCQueueTest.cpp
 )
 
 # Set compile-defined absolute path to test video file in local tests/ folder
