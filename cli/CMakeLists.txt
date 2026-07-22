@@ -1,6 +1,6 @@
 # Resolve SDL2 dependency for the CLI application
 set(SDL2_FOUND OFF)
-if(IS_WINDOWS)
+if(WIN32)
     find_package(SDL2 CONFIG QUIET)
     if(SDL2_FOUND OR TARGET SDL2::SDL2 OR TARGET SDL2::SDL2-static)
         set(SDL2_FOUND ON)

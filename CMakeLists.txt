@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.16)
 
-project(VideoDecoder VERSION 1.0.0 LANGUAGES C CXX)
+project(VideoDecoder VERSION 1.0.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,13 +17,7 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 include(CompilerFlags)
 
 # Find Common Dependencies
-if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
-    set(IS_WINDOWS ON)
-else()
-    set(IS_WINDOWS OFF)
-endif()
-
-if(NOT IS_WINDOWS)
+if(NOT WIN32)
     find_package(PkgConfig REQUIRED)
 
     # FFmpeg components
@@ -65,30 +59,23 @@ else()
 endif()
 
 # Google Logging (glog) Dependency Resolution
-set(GLOG_FOUND OFF)
-
-# 1. Try CMake find_package (vcpkg / CMake config file)
 find_package(glog CONFIG QUIET)
 if(NOT glog_FOUND)
     find_package(glog QUIET)
 endif()
 
-if(glog_FOUND OR TARGET glog::glog)
-    set(GLOG_FOUND ON)
+if(TARGET glog::glog)
     set(GLOG_TARGET glog::glog)
-elseif(NOT IS_WINDOWS)
-    # 2. Fallback to PkgConfig on Linux
+elseif(NOT WIN32)
     find_package(PkgConfig QUIET)
-    if(PkgConfig_FOUND)
-        pkg_check_modules(GLOG IMPORTED_TARGET libglog)
-        if(GLOG_FOUND)
-            set(GLOG_TARGET PkgConfig::GLOG)
-        endif()
+    pkg_check_modules(GLOG IMPORTED_TARGET libglog)
+    if(TARGET PkgConfig::GLOG)
+        set(GLOG_TARGET PkgConfig::GLOG)
     endif()
 endif()
 
-# 3. Fallback to FetchContent if glog is not installed on the system
-if(NOT GLOG_FOUND)
+# Fallback to FetchContent if glog is not installed on the host system
+if(NOT GLOG_TARGET)
     include(FetchContent)
     FetchContent_Declare(
         glog
@@ -148,18 +135,10 @@ else()
 endif()
 
 # Automatically install Git pre-commit hook on CMake configuration
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit")
-        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit"
-            DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks"
-            FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-        )
-        message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
-    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit")
-        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit"
-            DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks"
-            FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
-        )
-        message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
-    endif()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit")
+    file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit"
+        DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks"
+        FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+    )
+    message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
 endif()

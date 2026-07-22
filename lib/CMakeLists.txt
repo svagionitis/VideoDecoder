@@ -22,7 +22,7 @@ target_include_directories(VideoDecoder PUBLIC
 )
 
 # Link dependencies resolved in root CMakeLists
-if(NOT IS_WINDOWS)
+if(NOT WIN32)
     target_link_libraries(VideoDecoder PRIVATE
         PkgConfig::AVCODEC
         PkgConfig::AVFORMAT
