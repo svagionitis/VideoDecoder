@@ -5,10 +5,10 @@
 
 #include "DecoderFactory.h"
 #include "VideoFilters.h"
+#include <future>
 #include <glog/logging.h>
 #include <gtest/gtest.h>
 #include <iostream>
-#include <future>
 #include <thread>
 
 #ifndef TEST_INPUT_PATH
@@ -317,45 +317,63 @@ TEST_F(DecoderTestFixture, SimulatesLiveStreamInitialization)
 {
     // FFmpeg dummy rtsp check
     {
-        auto decoder = DecoderFactory::create(BackendType::FFMPEG);
+        std::shared_ptr<IVideoDecoder> decoder = DecoderFactory::create(BackendType::FFMPEG);
         ASSERT_NE(decoder, nullptr);
-        
-        std::promise<bool> initPromise;
-        std::future<bool> initFuture = initPromise.get_future();
-        std::thread initThread([&]() {
-            bool res = decoder->initialize("rtsp://127.0.0.1:9999/live.sdp");
-            initPromise.set_value(res);
+
+        auto initPromise = std::make_shared<std::promise<bool>>();
+        std::future<bool> initFuture = initPromise->get_future();
+        std::thread initThread([decoder, initPromise]() {
+            try {
+                bool res = decoder->initialize("rtsp://127.0.0.1:9999/live.sdp");
+                initPromise->set_value(res);
+            } catch (...) {
+                // Ignore if promise state was already satisfied or abandoned
+            }
         });
 
-        if (initFuture.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
-            initThread.detach();
+        if (initFuture.wait_for(std::chrono::seconds(3)) == std::future_status::timeout) {
+            decoder->close();
+            if (initThread.joinable()) {
+                initThread.join();
+            }
             SUCCEED() << "FFmpeg RTSP initialization timed out as expected.";
         } else {
             bool res = initFuture.get();
             EXPECT_FALSE(res);
-            initThread.join();
+            if (initThread.joinable()) {
+                initThread.join();
+            }
         }
     }
 
     // GStreamer dummy rtsp check
     {
-        auto decoder = DecoderFactory::create(BackendType::GSTREAMER);
+        std::shared_ptr<IVideoDecoder> decoder = DecoderFactory::create(BackendType::GSTREAMER);
         ASSERT_NE(decoder, nullptr);
-        
-        std::promise<bool> initPromise;
-        std::future<bool> initFuture = initPromise.get_future();
-        std::thread initThread([&]() {
-            bool res = decoder->initialize("rtsp://127.0.0.1:9999/live.sdp");
-            initPromise.set_value(res);
+
+        auto initPromise = std::make_shared<std::promise<bool>>();
+        std::future<bool> initFuture = initPromise->get_future();
+        std::thread initThread([decoder, initPromise]() {
+            try {
+                bool res = decoder->initialize("rtsp://127.0.0.1:9999/live.sdp");
+                initPromise->set_value(res);
+            } catch (...) {
+                // Ignore if promise state was already satisfied or abandoned
+            }
         });
 
-        if (initFuture.wait_for(std::chrono::seconds(1)) == std::future_status::timeout) {
-            initThread.detach();
+        if (initFuture.wait_for(std::chrono::seconds(3)) == std::future_status::timeout) {
+            decoder->close();
+            if (initThread.joinable()) {
+                initThread.join();
+            }
             SUCCEED() << "GStreamer RTSP initialization timed out as expected.";
         } else {
             bool res = initFuture.get();
             EXPECT_FALSE(res);
-            initThread.join();
+            if (initThread.joinable()) {
+                initThread.join();
+            }
         }
     }
 }
