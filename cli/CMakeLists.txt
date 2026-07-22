@@ -1,6 +1,3 @@
-# --- cli/CMakeLists.txt ---
-cmake_minimum_required(VERSION 3.16)
-
 # Resolve SDL2 dependency for the CLI application
 set(SDL2_FOUND OFF)
 if(IS_WINDOWS)
@@ -42,7 +39,7 @@ add_executable(VideoDecoderCLI
 target_link_libraries(VideoDecoderCLI PRIVATE
     VideoDecoder
     ${SDL2_TARGET}
+    ${GLOG_TARGET}
 )
 
-target_link_libraries(VideoDecoderCLI PRIVATE ${GLOG_TARGET})
-
+apply_compiler_flags(VideoDecoderCLI)

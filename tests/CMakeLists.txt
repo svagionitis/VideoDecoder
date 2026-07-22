@@ -1,6 +1,3 @@
-# --- tests/CMakeLists.txt ---
-cmake_minimum_required(VERSION 3.16)
-
 # Find GTest dependency or download via FetchContent
 find_package(GTest CONFIG QUIET)
 if(NOT GTest_FOUND)
@@ -24,6 +21,8 @@ else()
     set(GTEST_MAIN_TARGET GTest::gtest_main)
 endif()
 
+enable_testing()
+
 add_executable(VideoDecoderTests
     DecoderTests.cpp
     SPSCQueueTest.cpp
@@ -39,6 +38,8 @@ target_link_libraries(VideoDecoderTests PRIVATE
     ${GTEST_MAIN_TARGET}
     ${GLOG_TARGET}
 )
+
+apply_compiler_flags(VideoDecoderTests)
 
 # Discover tests automatically
 include(GoogleTest)

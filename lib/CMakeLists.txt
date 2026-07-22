@@ -1,6 +1,3 @@
-# --- lib/CMakeLists.txt ---
-cmake_minimum_required(VERSION 3.16)
-
 add_library(VideoDecoder SHARED
     IVideoDecoder.h
     DecoderFactory.h
@@ -71,3 +68,4 @@ else()
     )
 endif()
 
+apply_compiler_flags(VideoDecoder)

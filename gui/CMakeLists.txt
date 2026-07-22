@@ -1,6 +1,3 @@
-# --- gui/CMakeLists.txt ---
-cmake_minimum_required(VERSION 3.16)
-
 # Find Qt6 package components inside the GUI build module itself
 find_package(Qt6 COMPONENTS Widgets Gui Core REQUIRED)
 
@@ -24,10 +21,7 @@ target_link_libraries(VideoDecoderGUI PRIVATE
     Qt6::Widgets
     Qt6::Gui
     Qt6::Core
+    ${GLOG_TARGET}
 )
 
-if(NOT IS_WINDOWS)
-    target_link_libraries(VideoDecoderGUI PRIVATE PkgConfig::GLOG)
-else()
-    target_link_libraries(VideoDecoderGUI PRIVATE glog::glog)
-endif()
+apply_compiler_flags(VideoDecoderGUI)

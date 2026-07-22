@@ -1,9 +1,9 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Skip Qt Creator's buggy automatic vcpkg setup and use our own logic below
+# Skip Qt Creator's automatic vcpkg setup and use custom toolchain logic if needed
 set(QT_CREATOR_SKIP_VCPKG_SETUP ON)
 
-# Self-healing: if CMAKE_TOOLCHAIN_FILE was incorrectly set to a directory (common Qt Creator bug), correct it to the actual toolchain file path
+# Self-healing: if CMAKE_TOOLCHAIN_FILE was incorrectly set to a directory, correct it to the actual toolchain file path
 if(CMAKE_TOOLCHAIN_FILE AND IS_DIRECTORY "${CMAKE_TOOLCHAIN_FILE}")
     set(CMAKE_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}/scripts/buildsystems/vcpkg.cmake" CACHE FILEPATH "vcpkg toolchain file" FORCE)
 endif()
@@ -27,45 +27,29 @@ if(WIN32 AND NOT CMAKE_TOOLCHAIN_FILE)
     endforeach()
 endif()
 
-project(VideoDecoder LANGUAGES C CXX)
-
-# Set standard build profiles/configurations
-set(ALLOWED_BUILD_TYPES Debug Release RelWithDebInfo MinSizeRel)
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(DEFAULT_BUILD_TYPE "Release")
-    message(STATUS "Setting build type to '${DEFAULT_BUILD_TYPE}' as none was specified.")
-    set(CMAKE_BUILD_TYPE "${DEFAULT_BUILD_TYPE}" CACHE STRING "Choose the type of build." FORCE)
-    set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "${ALLOWED_BUILD_TYPES}")
-endif()
-
-if(CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_CONFIGURATION_TYPES "${ALLOWED_BUILD_TYPES}" CACHE STRING "Supported build configuration types" FORCE)
-endif()
-
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+project(VideoDecoder VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-# Helper flag for Windows vs Linux/macOS
+# Build Options
+option(BUILD_GUI "Build the Qt-based Desktop GUI application client" OFF)
+option(BUILD_CLI "Build the Command Line Interface (CLI) client application" ON)
+option(BUILD_TESTS "Build the Google Test (gtest) unit test suites" ON)
+
+# Compiler Flags & Modules
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
+include(CompilerFlags)
+
+# Find Common Dependencies
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(IS_WINDOWS ON)
-    add_compile_definitions(_CRT_SECURE_NO_WARNINGS)
 else()
     set(IS_WINDOWS OFF)
 endif()
 
-# Include custom compiler warning options, hardening, and sanitizer configurations
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
-include(CompilerFlags)
-
-# Build options (defaulting to building the CLI and Tests, but NOT the GUI)
-option(BUILD_CLI "Build the Command Line Interface (CLI) client application" ON)
-option(BUILD_GUI "Build the Qt-based Desktop GUI application client" OFF)
-option(BUILD_TESTS "Build the Google Test (gtest) unit test suites" ON)
-
-# We need package config on non-Windows platforms
 if(NOT IS_WINDOWS)
     find_package(PkgConfig REQUIRED)
 
@@ -79,13 +63,9 @@ if(NOT IS_WINDOWS)
     pkg_check_modules(GST REQUIRED IMPORTED_TARGET gstreamer-1.0)
     pkg_check_modules(GST_APP REQUIRED IMPORTED_TARGET gstreamer-app-1.0)
     pkg_check_modules(GST_VIDEO REQUIRED IMPORTED_TARGET gstreamer-video-1.0)
-
-    # Google Logging (glog)
-    pkg_check_modules(GLOG IMPORTED_TARGET libglog)
 else()
     # On Windows, try to find libraries via find_package first (vcpkg), then fallback.
     find_package(FFMPEG COMPONENTS avcodec avformat avutil swscale QUIET)
-    find_package(glog CONFIG QUIET)
 
     if(FFmpeg_FOUND OR FFMPEG_FOUND)
         set(FFMPEG_VIA_FIND_PACKAGE ON)
@@ -111,19 +91,30 @@ else()
     find_library(GOBJECT_LIBRARY NAMES gobject-2.0 PATHS "${GSTREAMER_ROOT}/lib" "$ENV{GSTREAMER_1_0_ROOT_MSVC_X86_64}/lib")
 endif()
 
-# Check if glog is found, otherwise use FetchContent fallback
+# Google Logging (glog) Dependency Resolution
 set(GLOG_FOUND OFF)
-if(NOT IS_WINDOWS)
-    if(GLOG_FOUND)
-        set(GLOG_TARGET PkgConfig::GLOG)
-    endif()
-else()
-    if(glog_FOUND)
-        set(GLOG_TARGET glog::glog)
-        set(GLOG_FOUND ON)
+
+# 1. Try CMake find_package (vcpkg / CMake config file)
+find_package(glog CONFIG QUIET)
+if(NOT glog_FOUND)
+    find_package(glog QUIET)
+endif()
+
+if(glog_FOUND OR TARGET glog::glog)
+    set(GLOG_FOUND ON)
+    set(GLOG_TARGET glog::glog)
+elseif(NOT IS_WINDOWS)
+    # 2. Fallback to PkgConfig on Linux
+    find_package(PkgConfig QUIET)
+    if(PkgConfig_FOUND)
+        pkg_check_modules(GLOG IMPORTED_TARGET libglog)
+        if(GLOG_FOUND)
+            set(GLOG_TARGET PkgConfig::GLOG)
+        endif()
     endif()
 endif()
 
+# 3. Fallback to FetchContent if glog is not installed on the system
 if(NOT GLOG_FOUND)
     include(FetchContent)
     FetchContent_Declare(
@@ -137,50 +128,65 @@ if(NOT GLOG_FOUND)
     set(GLOG_TARGET glog::glog)
 endif()
 
-
-
-# Add modular components via subdirectories
+# Core Video Decoder Library
 add_subdirectory(lib)
+
+# Video Processing Filters Library
 add_subdirectory(filters)
 
+# CLI Client Executable (Built by default)
 if(BUILD_CLI)
     add_subdirectory(cli)
 endif()
 
+# Qt Desktop GUI Client (Conditional)
 if(BUILD_GUI)
     add_subdirectory(gui)
 endif()
 
+# Unit Testing (Conditional)
 if(BUILD_TESTS)
     add_subdirectory(tests)
 endif()
 
-# Code formatting target using clang-format
-find_program(CLANG_FORMAT_BIN NAMES clang-format)
+# Clang-Format Code Formatting Target
+find_program(CLANG_FORMAT_BIN NAMES clang-format clang-format-15 clang-format-14 clang-format-12)
 if(CLANG_FORMAT_BIN)
-    file(GLOB_RECURSE ALL_SOURCE_FILES
-        "lib/*.cpp" "lib/*.h"
-        "filters/*.cpp" "filters/*.h"
-        "cli/*.cpp"
-        "gui/*.cpp" "gui/*.h"
-        "tests/*.cpp"
+    file(GLOB_RECURSE ALL_FORMAT_FILES
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/lib/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/filters/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/filters/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/cli/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/gui/*.h
+        ${CMAKE_CURRENT_SOURCE_DIR}/gui/*.cpp
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/*.cpp
     )
     add_custom_target(format
-        COMMAND ${CLANG_FORMAT_BIN} -i ${ALL_SOURCE_FILES}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
-        COMMENT "Formatting codebase with WebKit style conventions..."
+        COMMAND ${CLANG_FORMAT_BIN} -i -style=file ${ALL_FORMAT_FILES}
+        COMMENT "Applying clang-format (WebKit style) to all C++ files..."
     )
+    add_custom_target(format-check
+        COMMAND ${CLANG_FORMAT_BIN} --dry-run --Werror -style=file ${ALL_FORMAT_FILES}
+        COMMENT "Checking clang-format (WebKit style) compliance for all C++ files..."
+    )
+else()
+    message(STATUS "clang-format executable not found. 'format' target disabled.")
 endif()
 
 # Automatically install Git pre-commit hook on CMake configuration
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git")
-    message(STATUS "Git repository detected. Installing pre-commit hook...")
-    configure_file(
-        "${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit"
-        "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit"
-        COPYONLY
-    )
-    if(NOT IS_WINDOWS)
-        execute_process(COMMAND chmod +x "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks/pre-commit")
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/.githooks/pre-commit"
+            DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks"
+            FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        )
+        message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
+    elseif(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit")
+        file(COPY "${CMAKE_CURRENT_SOURCE_DIR}/scripts/pre-commit"
+            DESTINATION "${CMAKE_CURRENT_SOURCE_DIR}/.git/hooks"
+            FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
+        )
+        message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
     endif()
 endif()

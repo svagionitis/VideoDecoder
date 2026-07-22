@@ -1,6 +1,3 @@
-# --- filters/CMakeLists.txt ---
-cmake_minimum_required(VERSION 3.16)
-
 # Locate OpenCV dependency
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
@@ -10,7 +7,7 @@ add_library(VideoFilters SHARED
 )
 
 # Export macro definitions for Windows/Linux compilation visibility
-target_compile_definitions(VideoFilters PRIVATE -DVIDEOFILTERS_EXPORTS)
+target_compile_definitions(VideoFilters PRIVATE VIDEOFILTERS_EXPORTS)
 
 # Link directories and include definitions
 target_include_directories(VideoFilters PUBLIC
@@ -24,11 +21,4 @@ target_link_libraries(VideoFilters PUBLIC
     ${OpenCV_LIBS}
 )
 
-# Enforce compiler warning and hardening options if defined in root project
-if(EXISTS "${CMAKE_SOURCE_DIR}/cmake/CompilerFlags.cmake")
-    if(MSVC)
-        target_compile_options(VideoFilters PRIVATE /W4 /WX /wd4251)
-    else()
-        target_compile_options(VideoFilters PRIVATE -Wall -Wextra -Wpedantic -Werror)
-    endif()
-endif()
+apply_compiler_flags(VideoFilters)
