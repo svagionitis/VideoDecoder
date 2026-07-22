@@ -29,7 +29,7 @@ else()
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
     # Enable fortify source in non-Debug builds (requires optimization)
-    add_compile_definitions($<$<NOT:$<CONFIG:Debug>>:_FORTIFY_SOURCE=3>)
+    add_compile_options($<$<NOT:$<CONFIG:Debug>>:-U_FORTIFY_SOURCE> $<$<NOT:$<CONFIG:Debug>>:-D_FORTIFY_SOURCE=3>)
 
     # Hardened linker flags
     add_link_options(-Wl,-z,relro -Wl,-z,now)
