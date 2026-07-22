@@ -12,9 +12,18 @@
 #include "IVideoDecoder.h"
 #include <gst/app/gstappsink.h>
 #include <gst/gst.h>
-#include <gst/pbutils/pbutils.h>
 
 namespace videodecoder {
+
+/**
+ * @enum GstAutoplugSelectResult
+ * @brief Return values for GStreamer decodebin autoplug-select signal.
+ */
+enum GstAutoplugSelectResult {
+    GST_AUTOPLUG_SELECT_TRY = 0,
+    GST_AUTOPLUG_SELECT_EXPOSE = 1,
+    GST_AUTOPLUG_SELECT_SKIP = 2
+};
 
 /**
  * @struct GstElementDeleter
@@ -191,6 +200,17 @@ private:
      * @brief Static helper to initialize GStreamer runtime exactly once.
      */
     static void initGStreamer();
+
+    /**
+     * @brief GStreamer autoplug-select signal callback.
+     */
+    static int onAutoplugSelect(
+        GstElement* bin, GstPad* pad, GstCaps* caps, GstElementFactory* factory, gpointer user_data);
+
+    /**
+     * @brief GStreamer element-added signal callback.
+     */
+    static void onElementAdded(GstBin* bin, GstElement* element, gpointer user_data);
 };
 
 } // namespace videodecoder

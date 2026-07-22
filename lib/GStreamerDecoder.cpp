@@ -20,7 +20,8 @@
 
 namespace videodecoder {
 
-static GstAutoplugSelectResult onAutoplugSelect(GstElement* bin, GstPad* pad, GstCaps* caps, GstElementFactory* factory, gpointer user_data)
+int GStreamerDecoder::onAutoplugSelect(
+    GstElement* bin, GstPad* pad, GstCaps* caps, GstElementFactory* factory, gpointer user_data)
 {
     (void)bin;
     (void)pad;
@@ -39,14 +40,10 @@ static GstAutoplugSelectResult onAutoplugSelect(GstElement* bin, GstPad* pad, Gs
         std::transform(nameStr.begin(), nameStr.end(), nameStr.begin(), ::tolower);
 
         // Filter out hardware-accelerated decoders if CPU decoding is requested
-        if (klassStr.find("Hardware") != std::string::npos ||
-            nameStr.find("nvdec") != std::string::npos ||
-            nameStr.find("cuvid") != std::string::npos ||
-            nameStr.find("nvh264") != std::string::npos ||
-            nameStr.find("vaapi") != std::string::npos ||
-            nameStr.find("d3d11") != std::string::npos ||
-            nameStr.find("omx") != std::string::npos ||
-            nameStr.find("msdk") != std::string::npos) {
+        if (klassStr.find("Hardware") != std::string::npos || nameStr.find("nvdec") != std::string::npos
+            || nameStr.find("cuvid") != std::string::npos || nameStr.find("nvh264") != std::string::npos
+            || nameStr.find("vaapi") != std::string::npos || nameStr.find("d3d11") != std::string::npos
+            || nameStr.find("omx") != std::string::npos || nameStr.find("msdk") != std::string::npos) {
             LOG(INFO) << "GStreamer: Skipping hardware decoder element: " << nameStr << " (CPU decoding requested)";
             return GST_AUTOPLUG_SELECT_SKIP;
         }
@@ -54,7 +51,7 @@ static GstAutoplugSelectResult onAutoplugSelect(GstElement* bin, GstPad* pad, Gs
     return GST_AUTOPLUG_SELECT_TRY;
 }
 
-static void onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
+void GStreamerDecoder::onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
 {
     (void)bin;
     auto* decoder = static_cast<GStreamerDecoder*>(user_data);
@@ -105,7 +102,8 @@ void GStreamerDecoder::initGStreamer()
     }
 }
 
-bool GStreamerDecoder::initializeInternal(std::string_view filePath, PixelFormat format, int threadCount, DeviceType device)
+bool GStreamerDecoder::initializeInternal(
+    std::string_view filePath, PixelFormat format, int threadCount, DeviceType device)
 {
     close();
     auto start = std::chrono::high_resolution_clock::now();
@@ -318,9 +316,12 @@ bool GStreamerDecoder::initialize(std::string_view filePath, PixelFormat format,
     bool success = initializeInternal(filePath, format, threadCount, device);
     if (!success && device != DeviceType::CPU) {
         std::string deviceStr = "CPU";
-        if (device == DeviceType::CUDA) deviceStr = "CUDA";
-        else if (device == DeviceType::VAAPI) deviceStr = "VAAPI";
-        else if (device == DeviceType::D3D11VA) deviceStr = "D3D11VA";
+        if (device == DeviceType::CUDA)
+            deviceStr = "CUDA";
+        else if (device == DeviceType::VAAPI)
+            deviceStr = "VAAPI";
+        else if (device == DeviceType::D3D11VA)
+            deviceStr = "D3D11VA";
 
         LOG(WARNING) << "GStreamer: Failed to initialize with requested GPU device (" << deviceStr
                      << "). Falling back to CPU.";
