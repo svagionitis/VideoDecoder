@@ -1,32 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
 
-# Skip Qt Creator's automatic vcpkg setup and use custom toolchain logic if needed
-set(QT_CREATOR_SKIP_VCPKG_SETUP ON)
-
-# Self-healing: if CMAKE_TOOLCHAIN_FILE was incorrectly set to a directory, correct it to the actual toolchain file path
-if(CMAKE_TOOLCHAIN_FILE AND IS_DIRECTORY "${CMAKE_TOOLCHAIN_FILE}")
-    set(CMAKE_TOOLCHAIN_FILE "${CMAKE_TOOLCHAIN_FILE}/scripts/buildsystems/vcpkg.cmake" CACHE FILEPATH "vcpkg toolchain file" FORCE)
-endif()
-
-if(WIN32 AND NOT CMAKE_TOOLCHAIN_FILE)
-    # Check known paths for vcpkg.cmake
-    set(VCPKG_CANDIDATE_PATHS
-        "$ENV{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
-        "C:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        "$ENV{USERPROFILE}/workspace/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        "D:/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        "$ENV{USERPROFILE}/vcpkg/scripts/buildsystems/vcpkg.cmake"
-        "C:/src/vcpkg/scripts/buildsystems/vcpkg.cmake"
-    )
-    foreach(candidate IN LISTS VCPKG_CANDIDATE_PATHS)
-        if(EXISTS "${candidate}")
-            set(CMAKE_TOOLCHAIN_FILE "${candidate}" CACHE FILEPATH "vcpkg toolchain file")
-            message(STATUS "Auto-detected vcpkg toolchain file: ${CMAKE_TOOLCHAIN_FILE}")
-            break()
-        endif()
-    endforeach()
-endif()
-
 project(VideoDecoder VERSION 1.0.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
