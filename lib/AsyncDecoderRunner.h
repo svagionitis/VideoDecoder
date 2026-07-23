@@ -5,6 +5,7 @@
 
 #pragma once
 
+#include "AlignedMemoryPool.h"
 #include "IVideoDecoder.h"
 #include "SPSCQueue.h"
 #include <atomic>
@@ -24,7 +25,7 @@ namespace videodecoder {
  * @brief Thread-safe frame container passed through the SPSC ring buffer.
  */
 struct FramePayload {
-    std::vector<uint8_t> pixelData;
+    AlignedBuffer pixelData;
     int width = 0;
     int height = 0;
     size_t size = 0;
@@ -202,10 +203,10 @@ private:
                 FramePayload payload;
                 if (m_freeQueue.try_pop(payload)) {
                     payload.pixelData.resize(info.size);
-                    std::memcpy(payload.pixelData.data(), info.data, info.size);
                 } else {
-                    payload.pixelData.assign(info.data, info.data + info.size);
+                    payload.pixelData = AlignedBuffer(info.size, kOptimalSIMDAlignment);
                 }
+                std::memcpy(payload.pixelData.data(), info.data, info.size);
 
                 payload.width = info.width;
                 payload.height = info.height;

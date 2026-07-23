@@ -209,7 +209,7 @@ static BenchmarkResults runAsyncBenchmark(const BenchmarkOptions& opts)
             // Touch pixel data
             volatile uint8_t checksum = 0;
             if (!payload.pixelData.empty()) {
-                checksum = payload.pixelData.front() ^ payload.pixelData.back();
+                checksum = payload.pixelData.data()[0] ^ payload.pixelData.data()[payload.pixelData.size() - 1];
             }
             (void)checksum;
 

@@ -68,6 +68,22 @@ public:
     }
 
     /**
+     * @brief Pushes an item by rvalue reference onto the queue (Producer thread only).
+     * @param value Item to move-push into the queue.
+     * @return true if successfully pushed, false if the queue is full.
+     */
+    bool try_push(T&& value)
+    {
+        const size_t current_tail = m_tail.load(std::memory_order_relaxed);
+        if (current_tail - m_head.load(std::memory_order_acquire) >= Capacity) {
+            return false; // Queue is full
+        }
+        m_buffer[current_tail % Capacity] = std::move(value);
+        m_tail.store(current_tail + 1, std::memory_order_release);
+        return true;
+    }
+
+    /**
      * @brief Emplaces an item onto the queue in-place (Producer thread only).
      * @tparam Args Argument types for T constructor.
      * @param args Arguments passed to construct T.
