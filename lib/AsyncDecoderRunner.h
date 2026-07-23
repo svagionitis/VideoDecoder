@@ -9,8 +9,10 @@
 #include "SPSCQueue.h"
 #include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstring>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
@@ -89,6 +91,10 @@ public:
     void stop()
     {
         if (m_running.exchange(false)) {
+            {
+                std::lock_guard<std::mutex> lock(m_cvMutex);
+                m_cv.notify_all();
+            }
             if (m_workerThread.joinable()) {
                 m_workerThread.join();
             }
@@ -109,6 +115,32 @@ public:
             m_freeQueue.try_push(std::move(recycle));
         }
         return m_readyQueue.try_pop(payload);
+    }
+
+    /**
+     * @brief Blocking/adaptive pop frame call for consumer thread.
+     *
+     * Uses lock-free fast path first. If queue is empty, waits on condition variable until
+     * a new frame is pushed, EOS is reached, or timeout expires.
+     *
+     * @param payload Reference to receive popped FramePayload.
+     * @param timeout Maximum duration to wait if queue is empty.
+     * @return true if frame popped successfully, false if timeout or EOS reached.
+     */
+    bool popFrame(FramePayload& payload, std::chrono::milliseconds timeout = std::chrono::milliseconds(1000))
+    {
+        if (tryPopFrame(payload)) {
+            return true;
+        }
+
+        if (isEos()) {
+            return false;
+        }
+
+        std::unique_lock<std::mutex> lock(m_cvMutex);
+        return m_cv.wait_for(lock, timeout, [this, &payload]() {
+            return tryPopFrame(payload) || m_eos.load() || !m_running.load();
+        }) && !payload.pixelData.empty();
     }
 
     /**
@@ -144,6 +176,8 @@ private:
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_eos { false };
     std::thread m_workerThread;
+    mutable std::mutex m_cvMutex;
+    std::condition_variable m_cv;
 
     void workerLoop()
     {
@@ -156,6 +190,10 @@ private:
 
             if (!m_decoder->decodeNextFrame()) {
                 m_eos.store(true);
+                {
+                    std::lock_guard<std::mutex> lock(m_cvMutex);
+                    m_cv.notify_all();
+                }
                 break;
             }
 
@@ -177,6 +215,10 @@ private:
                 payload.format = info.format;
 
                 m_readyQueue.try_push(std::move(payload));
+                {
+                    std::lock_guard<std::mutex> lock(m_cvMutex);
+                    m_cv.notify_one();
+                }
             }
         }
     }

@@ -200,7 +200,7 @@ static BenchmarkResults runAsyncBenchmark(const BenchmarkOptions& opts)
         FramePayload payload;
         auto pollStart = std::chrono::high_resolution_clock::now();
 
-        if (runner.tryPopFrame(payload)) {
+        if (runner.popFrame(payload, std::chrono::milliseconds(100))) {
             auto pollEnd = std::chrono::high_resolution_clock::now();
             double latency = std::chrono::duration<double, std::milli>(pollEnd - pollStart).count();
             frameLatencies.push_back(latency);
@@ -221,7 +221,6 @@ static BenchmarkResults runAsyncBenchmark(const BenchmarkOptions& opts)
                 break;
             }
             res.consumerStalls++;
-            std::this_thread::yield();
         }
     }
 
