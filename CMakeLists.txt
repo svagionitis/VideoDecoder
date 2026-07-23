@@ -9,10 +9,32 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 
-# Default CMAKE_BUILD_TYPE to Debug if not specified for single-configuration generators
-if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
+# Option to use non-transitive linking
+option(NON_TRANSITIVE "Option to use non-transitive linking" OFF)
+
+if(EXISTS ${CMAKE_SOURCE_DIR}/.git)
+    find_package(Git)
 endif()
+
+# Default CMAKE_BUILD_TYPE to Debug if not specified for single-configuration generators
+if (CMAKE_BUILD_TYPE)
+   set(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE
+       STRING "Choose the type of build, options are:
+- None (CMAKE_CXX_FLAGS)
+- Debug
+- Release
+- RelWithDebInfo
+- MinSizeRel.")
+else ()
+   set(CMAKE_BUILD_TYPE Debug CACHE
+       STRING "Choose the type of build, options are:
+- None (CMAKE_CXX_FLAGS)
+- Debug
+- Release
+- RelWithDebInfo
+- MinSizeRel."
+       FORCE)
+endif ()
 
 # Set common output directory for binaries and shared libraries (crucial on Windows for DLL resolution)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -161,8 +183,13 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND EXISTS "${CMAKE_CURRENT_SOURCE_
     message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
 endif()
 
-if(MSVC)
-    message(STATUS "Build instructions for MSVC: cmake --build . --config Debug")
-else()
-    message(STATUS "Build instructions for Ninja/Makefiles: cmake --build . -j$(nproc)")
-endif()
+if (MSVC)
+    message (STATUS "If using the 'Visual Studio' generator, now run")
+    message (STATUS "     cmake --build . [target] -- /maxcpucount[:N]")
+    message (STATUS "If using the 'NMake Makefiles' generator, now run")
+    message (STATUS "     cmake --build . [target]")
+else ()
+    message (STATUS "If using the 'Unix Makefiles' generator, now run")
+    message (STATUS "     cmake --build . [target] -- -j$(nproc)")
+endif ()
+
