@@ -33,7 +33,7 @@ FFmpegDecoder::FFmpegDecoder()
 
 FFmpegDecoder::~FFmpegDecoder()
 {
-    close();
+    FFmpegDecoder::close();
 }
 
 bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, int threadCount, DeviceType device)
@@ -381,7 +381,7 @@ void FFmpegDecoder::close()
     m_decodedFramesCount = 0;
     m_reconnectAttempts = 0;
     m_threadCount = 0;
-    clearFrameProcessors();
+    FFmpegDecoder::clearFrameProcessors();
     if (m_hwDeviceCtx) {
         av_buffer_unref(&m_hwDeviceCtx);
         m_hwDeviceCtx = nullptr;

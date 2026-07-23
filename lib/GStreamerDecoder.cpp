@@ -83,7 +83,7 @@ GStreamerDecoder::GStreamerDecoder()
 
 GStreamerDecoder::~GStreamerDecoder()
 {
-    close();
+    GStreamerDecoder::close();
 }
 
 void GStreamerDecoder::initGStreamer()
