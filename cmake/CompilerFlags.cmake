@@ -11,6 +11,8 @@ function(apply_compiler_flags TARGET_NAME)
         target_compile_definitions(${TARGET_NAME} PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX _CRT_SECURE_NO_WARNINGS)
     endif()
 
+    set_target_properties(${TARGET_NAME} PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
     if(MSVC)
         target_compile_options(${TARGET_NAME} PRIVATE /W4 /wd4324 /sdl)
         if(WARNINGS_AS_ERRORS)
@@ -43,15 +45,19 @@ function(apply_compiler_flags TARGET_NAME)
         endif()
 
         if(ENABLE_HARDENING)
+            get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
             target_compile_options(${TARGET_NAME} PRIVATE
                 -fstack-protector-strong
-                -fPIE
             )
+            if(TARGET_TYPE STREQUAL "EXECUTABLE")
+                target_compile_options(${TARGET_NAME} PRIVATE -fPIE)
+                target_link_options(${TARGET_NAME} PRIVATE -pie)
+            endif()
+
             if(CMAKE_BUILD_TYPE STREQUAL "Release" OR CMAKE_BUILD_TYPE STREQUAL "RelWithDebInfo")
                 target_compile_definitions(${TARGET_NAME} PRIVATE _FORTIFY_SOURCE=2)
             endif()
             target_link_options(${TARGET_NAME} PRIVATE
-                -pie
                 -Wl,-z,relro,-z,now
                 -Wl,-z,noexecstack
             )
