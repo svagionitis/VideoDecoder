@@ -15,6 +15,15 @@
 #include <sched.h>
 #endif
 
+// Check if libavformat version is older than 59.4.100
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 4, 100)
+    #define AV_FIND_BEST_STREAM(ctx, type, wanted, related, codec, flags) \
+        av_find_best_stream(ctx, type, wanted, related, const_cast<AVCodec**>(codec), flags)
+#else
+    #define AV_FIND_BEST_STREAM(ctx, type, wanted, related, codec, flags) \
+        av_find_best_stream(ctx, type, wanted, related, const_cast<const AVCodec**>(codec), flags)
+#endif
+
 namespace videodecoder {
 
 FFmpegDecoder::FFmpegDecoder()
@@ -72,8 +81,8 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     }
 
     // Find the best video stream
-    AVCodec* codec = nullptr;
-    ret = av_find_best_stream(m_formatCtx.get(), AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
+    const AVCodec* codec = nullptr;
+    ret = AV_FIND_BEST_STREAM(m_formatCtx.get(), AVMEDIA_TYPE_VIDEO, -1, -1, &codec, 0);
     if (ret < 0 || !codec) {
         LOG(ERROR) << "FFmpeg: Failed to find valid video stream in: " << filePath;
         return false;
