@@ -21,7 +21,7 @@ function(apply_compiler_flags TARGET_NAME)
 
         if(ENABLE_HARDENING)
             target_compile_options(${TARGET_NAME} PRIVATE /GS /guard:cf)
-            target_link_options(${TARGET_NAME} PRIVATE /NXCOMPAT /DYNAMICBASE /guard:cf)
+            target_link_options(${TARGET_NAME} PRIVATE /NXCOMPAT /DYNAMICBASE /HIGHENTROPYVA /guard:cf /CETCOMPAT)
         endif()
 
     else() # GCC / Clang
@@ -48,7 +48,13 @@ function(apply_compiler_flags TARGET_NAME)
             get_target_property(TARGET_TYPE ${TARGET_NAME} TYPE)
             target_compile_options(${TARGET_NAME} PRIVATE
                 -fstack-protector-strong
+                -fstack-clash-protection
             )
+
+            if(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
+                target_compile_options(${TARGET_NAME} PRIVATE -fcf-protection=full)
+            endif()
+
             if(TARGET_TYPE STREQUAL "EXECUTABLE")
                 target_compile_options(${TARGET_NAME} PRIVATE -fPIE)
                 target_link_options(${TARGET_NAME} PRIVATE -pie)
@@ -60,6 +66,7 @@ function(apply_compiler_flags TARGET_NAME)
             target_link_options(${TARGET_NAME} PRIVATE
                 -Wl,-z,relro,-z,now
                 -Wl,-z,noexecstack
+                -Wl,-z,defs
             )
         endif()
 
