@@ -9,6 +9,7 @@
 #include "SPSCQueue.h"
 #include <atomic>
 #include <chrono>
+#include <cstring>
 #include <memory>
 #include <string>
 #include <thread>
@@ -98,10 +99,16 @@ public:
      * @brief Non-blockingly tries to pop the next decoded frame (Consumer thread).
      * @param payload Reference to receive the popped FramePayload.
      * @return true if a frame was popped, false if queue is empty.
+     * @note Recycles the previous pixel buffer in payload back to the free pool.
      */
     bool tryPopFrame(FramePayload& payload)
     {
-        return m_queue.try_pop(payload);
+        if (!payload.pixelData.empty()) {
+            FramePayload recycle;
+            recycle.pixelData = std::move(payload.pixelData);
+            m_freeQueue.try_push(std::move(recycle));
+        }
+        return m_readyQueue.try_pop(payload);
     }
 
     /**
@@ -110,7 +117,7 @@ public:
      */
     bool isEos() const
     {
-        return m_eos.load() && m_queue.empty();
+        return m_eos.load() && m_readyQueue.empty();
     }
 
     /**
@@ -132,7 +139,8 @@ public:
 
 private:
     std::shared_ptr<IVideoDecoder> m_decoder;
-    SPSCQueue<FramePayload, 16> m_queue;
+    SPSCQueue<FramePayload, 16> m_readyQueue;
+    SPSCQueue<FramePayload, 16> m_freeQueue;
     std::atomic<bool> m_running { false };
     std::atomic<bool> m_eos { false };
     std::thread m_workerThread;
@@ -140,7 +148,7 @@ private:
     void workerLoop()
     {
         while (m_running.load()) {
-            if (m_queue.full()) {
+            if (m_readyQueue.full()) {
                 // Yield briefly if consumer is falling behind
                 std::this_thread::sleep_for(std::chrono::microseconds(500));
                 continue;
@@ -154,7 +162,13 @@ private:
             FrameInfo info = m_decoder->getRawFrameData();
             if (info.data && info.size > 0) {
                 FramePayload payload;
-                payload.pixelData.assign(info.data, info.data + info.size);
+                if (m_freeQueue.try_pop(payload)) {
+                    payload.pixelData.resize(info.size);
+                    std::memcpy(payload.pixelData.data(), info.data, info.size);
+                } else {
+                    payload.pixelData.assign(info.data, info.data + info.size);
+                }
+
                 payload.width = info.width;
                 payload.height = info.height;
                 payload.size = info.size;
@@ -162,7 +176,7 @@ private:
                 payload.decodeTimeMs = info.decodeTimeMs;
                 payload.format = info.format;
 
-                m_queue.try_push(std::move(payload));
+                m_readyQueue.try_push(std::move(payload));
             }
         }
     }
