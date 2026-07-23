@@ -11,6 +11,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(BUILD_GUI "Build the Qt-based Desktop GUI application client" OFF)
 option(BUILD_CLI "Build the Command Line Interface (CLI) client application" ON)
 option(BUILD_TESTS "Build the Google Test (gtest) unit test suites" ON)
+option(BUILD_BENCHMARKS "Build the decoding benchmark suite" ON)
 
 # Compiler Flags & Modules
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
@@ -107,6 +108,11 @@ endif()
 # Unit Testing (Conditional)
 if(BUILD_TESTS)
     add_subdirectory(tests)
+endif()
+
+# Performance Benchmarks (Conditional)
+if(BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
 endif()
 
 # Clang-Format Code Formatting Target
