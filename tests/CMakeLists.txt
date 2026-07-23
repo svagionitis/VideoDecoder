@@ -26,6 +26,7 @@ enable_testing()
 add_executable(VideoDecoderTests
     DecoderTests.cpp
     SPSCQueueTest.cpp
+    AlignedMemoryPoolTest.cpp
 )
 
 # Set compile-defined absolute path to test video file in local tests/ folder

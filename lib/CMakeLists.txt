@@ -4,6 +4,7 @@ add_library(VideoDecoder SHARED
     DecoderTypes.h
     Visibility.h
     SPSCQueue.h
+    AlignedMemoryPool.h
     AsyncDecoderRunner.h
     FFmpegDecoder.h
     FFmpegDecoder.cpp
