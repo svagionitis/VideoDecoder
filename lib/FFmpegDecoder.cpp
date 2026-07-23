@@ -45,8 +45,16 @@ bool FFmpegDecoder::initialize(std::string_view filePath, PixelFormat format, in
     av_dict_set(&options, "stimeout", "1000000", 0);
     av_dict_set(&options, "rw_timeout", "1000000", 0);
 
+    // Detect hardware webcam or capture device formats
+    const AVInputFormat* iformat = nullptr;
+    if (pathStr.rfind("/dev/video", 0) == 0) {
+        iformat = av_find_input_format("v4l2");
+    } else if (pathStr.rfind("video=", 0) == 0 || pathStr.rfind("video:", 0) == 0) {
+        iformat = av_find_input_format("dshow");
+    }
+
     // Open input stream
-    int ret = avformat_open_input(&formatCtxRaw, pathStr.c_str(), nullptr, &options);
+    int ret = avformat_open_input(&formatCtxRaw, pathStr.c_str(), const_cast<AVInputFormat*>(iformat), &options);
     if (options) {
         av_dict_free(&options);
     }

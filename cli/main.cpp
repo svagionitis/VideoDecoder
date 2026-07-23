@@ -356,26 +356,23 @@ void saveSnapshot(const std::string& filename, const uint8_t* data, int width, i
  */
 void printUsage(const char* progName)
 {
-    std::cout << "Usage: " << progName << " <rtsp_url> <--ffmpeg | --gstreamer> [options]\n\n"
-              << "Arguments:\n"
-              << "  <rtsp_url>       The RTSP stream URL to test (e.g. rtsp://192.168.1.100:554/stream1)\n\n"
-              << "Backend Selection (Required):\n"
-              << "  --ffmpeg         Use FFmpeg decoder backend.\n"
-              << "  --gstreamer      Use GStreamer decoder backend.\n\n"
-              << "Options:\n"
-              << "  --sdl2           Enable SDL2 window playback mode (default for FFmpeg, optional for GStreamer).\n"
-              << "  --console        Enable terminal/console-only playback mode.\n"
-              << "                   Renders downscaled truecolor video frames directly in the terminal\n"
-              << "                   using ANSI escape codes. Recommended for headless servers / SSH sessions.\n\n"
-              << "  --braille        Enable terminal/console-only playback mode using Unicode Braille\n"
-              << "                   characters. Renders dithered high-resolution subpixels with\n"
-              << "                   truecolor mapping, capturing 8 subpixels per character cell.\n\n"
-              << "  -h, --help       Display this help message and exit.\n\n"
-              << "Note:\n"
-              << "  For GStreamer, if neither --sdl2 nor --console is specified, GStreamer native windowing\n"
-              << "  (autovideosink) is used for playback by default.\n\n"
-              << "Key Controls during Playback:\n"
-              << "  Escape           Exit the playback loop and take a final snapshot.\n";
+    std::cout
+        << "Usage: " << progName << " <source_path_or_url> <--ffmpeg | --gstreamer> [options]\n\n"
+        << "Arguments:\n"
+        << "  <source_path_or_url>  Target input source to play back. Supported formats:\n"
+        << "                        - Video Files    : .mp4, .mkv, .avi, .mov, .webm, .flv, .ts, .y4m\n"
+        << "                        - Hardware Camera: /dev/video0 (Linux V4L2) or video=Camera (Windows DirectShow)\n"
+        << "                        - Network Streams: rtsp://, rtmp://, http://, udp:// URLs\n\n"
+        << "Backend Selection (Required):\n"
+        << "  --ffmpeg              Use FFmpeg decoder backend.\n"
+        << "  --gstreamer           Use GStreamer decoder backend.\n\n"
+        << "Options:\n"
+        << "  --sdl2                Enable SDL2 window playback mode (default for FFmpeg).\n"
+        << "  --console             Enable terminal/console-only playback mode (ANSI truecolor).\n"
+        << "  --braille             Enable terminal/console-only Unicode Braille playback mode.\n"
+        << "  -h, --help            Display this help message and exit.\n\n"
+        << "Key Controls during Playback:\n"
+        << "  Escape                Exit the playback loop and save a final snapshot.\n";
 }
 
 int main(int argc, char* argv[])

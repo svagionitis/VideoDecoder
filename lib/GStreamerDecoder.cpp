@@ -122,9 +122,13 @@ bool GStreamerDecoder::initializeInternal(
         escapedPath += c;
     }
 
-    // Determine if input is a URI (e.g., rtsp://, http://) or a local file path
+    // Determine if input is a hardware camera device, URI stream, or local file
     std::string sourceBin;
-    if (escapedPath.find("://") != std::string::npos) {
+    if (escapedPath.rfind("/dev/video", 0) == 0) {
+        sourceBin = "v4l2src device=\"" + escapedPath + "\" ! decodebin";
+    } else if (escapedPath.rfind("video=", 0) == 0 || escapedPath.rfind("video:", 0) == 0) {
+        sourceBin = "ksvideosrc ! decodebin";
+    } else if (escapedPath.find("://") != std::string::npos) {
         sourceBin = "uridecodebin uri=\"" + escapedPath + "\"";
     } else {
         sourceBin = "filesrc location=\"" + escapedPath + "\" ! decodebin";

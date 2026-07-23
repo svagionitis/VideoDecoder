@@ -82,8 +82,8 @@ MainWindow::~MainWindow()
 
 void MainWindow::onBrowseClicked()
 {
-    QString fileName = QFileDialog::getOpenFileName(
-        this, "Open Video File", QString(), "Video Files (*.mp4 *.mkv *.avi *.mov *.y4m);;All Files (*)");
+    QString fileName = QFileDialog::getOpenFileName(this, "Open Video Source", QString(),
+        "Video Files (*.mp4 *.mkv *.avi *.mov *.webm *.flv *.ts *.wmv *.y4m *.m4v);;All Files (*)");
     if (!fileName.isEmpty()) {
         m_filePathEdit->setText(fileName);
     }
