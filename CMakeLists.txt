@@ -6,6 +6,13 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_INCLUDE_CURRENT_DIR ON)
+
+# Default CMAKE_BUILD_TYPE to Debug if not specified for single-configuration generators
+if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    set(CMAKE_BUILD_TYPE Debug CACHE STRING "Choose the type of build, options are: None Debug Release RelWithDebInfo MinSizeRel." FORCE)
+endif()
 
 # Set common output directory for binaries and shared libraries (crucial on Windows for DLL resolution)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
@@ -152,4 +159,10 @@ if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/.git" AND EXISTS "${CMAKE_CURRENT_SOURCE_
         FILE_PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE GROUP_READ GROUP_EXECUTE WORLD_READ WORLD_EXECUTE
     )
     message(STATUS "Git pre-commit hook successfully installed to .git/hooks/pre-commit")
+endif()
+
+if(MSVC)
+    message(STATUS "Build instructions for MSVC: cmake --build . --config Debug")
+else()
+    message(STATUS "Build instructions for Ninja/Makefiles: cmake --build . -j$(nproc)")
 endif()
