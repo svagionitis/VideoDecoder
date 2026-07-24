@@ -186,6 +186,11 @@ private:
     bool m_reachedEof = false; ///< End of stream flag
 
     /**
+     * @brief Private helper to extract error message from GStreamer pipeline bus.
+     */
+    std::string getBusErrorMessage();
+
+    /**
      * @brief Private helper to reinitialize the GStreamer pipeline for live streams.
      * @return true if reconnection succeeded, false otherwise.
      */
@@ -200,6 +205,11 @@ private:
      * @brief Static helper to initialize GStreamer runtime exactly once.
      */
     static void initGStreamer();
+
+    /**
+     * @brief Helper to configure element properties and attach signal callbacks recursively.
+     */
+    void setupElementHooks(GstElement* element);
 
     /**
      * @brief GStreamer autoplug-select signal callback.

@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <filesystem>
 #include <glog/logging.h>
 #include <gst/video/video.h>
 #include <thread>
@@ -51,14 +52,12 @@ int GStreamerDecoder::onAutoplugSelect(
     return GST_AUTOPLUG_SELECT_TRY;
 }
 
-void GStreamerDecoder::onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
+void GStreamerDecoder::setupElementHooks(GstElement* element)
 {
-    (void)bin;
-    auto* decoder = static_cast<GStreamerDecoder*>(user_data);
-    if (!decoder)
+    if (!element)
         return;
 
-    int threads = decoder->m_threadCount;
+    int threads = m_threadCount;
     if (threads > 0 && g_object_class_find_property(G_OBJECT_GET_CLASS(element), "max-threads")) {
         g_object_set(element, "max-threads", threads, nullptr);
     }
@@ -66,14 +65,49 @@ void GStreamerDecoder::onElementAdded(GstBin* bin, GstElement* element, gpointer
         g_object_set(element, "connection-timeout", 1000, nullptr);
     }
 
-    gchar* name = gst_element_get_name(element);
-    if (name) {
-        std::string nameStr(name);
-        g_free(name);
-        if (nameStr.find("decodebin") != std::string::npos || nameStr.find("uridecodebin") != std::string::npos) {
-            g_signal_connect(element, "autoplug-select", G_CALLBACK(onAutoplugSelect), decoder);
+    if (g_signal_lookup("autoplug-select", G_OBJECT_TYPE(element)) > 0) {
+        g_signal_connect(element, "autoplug-select", G_CALLBACK(onAutoplugSelect), this);
+    }
+
+    if (GST_IS_BIN(element)) {
+        g_signal_connect(element, "element-added", G_CALLBACK(onElementAdded), this);
+        GstIterator* it = gst_bin_iterate_elements(GST_BIN(element));
+        if (it) {
+            GValue val = G_VALUE_INIT;
+            gboolean done = FALSE;
+            while (!done) {
+                switch (gst_iterator_next(it, &val)) {
+                case GST_ITERATOR_OK: {
+                    GstElement* child = GST_ELEMENT(g_value_get_object(&val));
+                    if (child) {
+                        setupElementHooks(child);
+                    }
+                    g_value_reset(&val);
+                    break;
+                }
+                case GST_ITERATOR_RESYNC:
+                    gst_iterator_resync(it);
+                    break;
+                case GST_ITERATOR_DONE:
+                case GST_ITERATOR_ERROR:
+                    done = TRUE;
+                    break;
+                }
+            }
+            g_value_unset(&val);
+            gst_iterator_free(it);
         }
     }
+}
+
+void GStreamerDecoder::onElementAdded(GstBin* bin, GstElement* element, gpointer user_data)
+{
+    (void)bin;
+    auto* decoder = static_cast<GStreamerDecoder*>(user_data);
+    if (!decoder)
+        return;
+
+    decoder->setupElementHooks(element);
 }
 
 GStreamerDecoder::GStreamerDecoder()
@@ -100,6 +134,35 @@ void GStreamerDecoder::initGStreamer()
         initialized = true;
         LOG(INFO) << "GStreamer: Runtime initialized successfully.";
     }
+}
+
+std::string GStreamerDecoder::getBusErrorMessage()
+{
+    if (!m_pipeline)
+        return "";
+    GstBus* bus = gst_element_get_bus(m_pipeline.get());
+    std::string busErrMsg;
+    if (bus) {
+        GstMessage* msg = gst_bus_pop_filtered(bus, static_cast<GstMessageType>(GST_MESSAGE_ERROR));
+        if (msg) {
+            GError* err = nullptr;
+            gchar* debug = nullptr;
+            gst_message_parse_error(msg, &err, &debug);
+            if (err && err->message) {
+                busErrMsg = err->message;
+            }
+            if (debug) {
+                busErrMsg += std::string(" (debug: ") + debug + ")";
+                g_free(debug);
+            }
+            if (err) {
+                g_error_free(err);
+            }
+            gst_message_unref(msg);
+        }
+        gst_object_unref(bus);
+    }
+    return busErrMsg;
 }
 
 bool GStreamerDecoder::initializeInternal(
@@ -131,6 +194,11 @@ bool GStreamerDecoder::initializeInternal(
     } else if (escapedPath.find("://") != std::string::npos) {
         sourceBin = "uridecodebin uri=\"" + escapedPath + "\"";
     } else {
+        std::error_code ec;
+        if (!std::filesystem::exists(std::string(filePath), ec)) {
+            LOG(ERROR) << "GStreamer: File does not exist or is inaccessible: " << filePath;
+            return false;
+        }
         sourceBin = "filesrc location=\"" + escapedPath + "\" ! decodebin";
     }
 
@@ -143,7 +211,8 @@ bool GStreamerDecoder::initializeInternal(
     std::string pipelineDesc;
     if (enableNative) {
         pipelineDesc = sourceBin
-            + " ! videoconvert ! tee name=t ! queue ! autovideosink t. ! queue ! appsink name=sink caps=\"video/x-raw, "
+            + " ! tee name=t ! queue ! videoconvert ! autovideosink t. ! queue ! videoconvert ! appsink name=sink "
+              "caps=\"video/x-raw, "
               "format="
             + formatStr + "\"";
     } else {
@@ -160,7 +229,7 @@ bool GStreamerDecoder::initializeInternal(
     }
     m_pipeline.reset(pipelineRaw);
 
-    g_signal_connect(m_pipeline.get(), "element-added", G_CALLBACK(onElementAdded), this);
+    setupElementHooks(m_pipeline.get());
 
     // Retrieve appsink element
     m_sink = gst_bin_get_by_name(GST_BIN(m_pipeline.get()), "sink");
@@ -173,7 +242,9 @@ bool GStreamerDecoder::initializeInternal(
     // Set pipeline to PLAYING state
     GstStateChangeReturn stateRet = gst_element_set_state(m_pipeline.get(), GST_STATE_PLAYING);
     if (stateRet == GST_STATE_CHANGE_FAILURE) {
-        LOG(ERROR) << "GStreamer: Failed to set pipeline to PLAYING state";
+        std::string busErrMsg = getBusErrorMessage();
+        LOG(ERROR) << "GStreamer: Failed to set pipeline to PLAYING state"
+                   << (busErrMsg.empty() ? "" : ": " + busErrMsg);
         close();
         return false;
     }
@@ -182,7 +253,9 @@ bool GStreamerDecoder::initializeInternal(
     // up to a reasonable timeout to verify it initialized successfully.
     stateRet = gst_element_get_state(m_pipeline.get(), nullptr, nullptr, 5 * GST_SECOND);
     if (stateRet == GST_STATE_CHANGE_FAILURE) {
-        LOG(ERROR) << "GStreamer: Pipeline state change failed during pre-roll";
+        std::string busErrMsg = getBusErrorMessage();
+        LOG(ERROR) << "GStreamer: Pipeline state change failed during pre-roll"
+                   << (busErrMsg.empty() ? "" : ": " + busErrMsg);
         close();
         return false;
     }
