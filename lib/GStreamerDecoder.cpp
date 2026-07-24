@@ -475,35 +475,57 @@ bool GStreamerDecoder::decodeNextFrame()
         return false;
     }
 
-    // Pull next sample from appsink (blocking call)
+    // Pull next sample from appsink with timeout to allow handling bus errors/window closing
     GstSample* sampleRaw = nullptr;
     while (true) {
-        sampleRaw = gst_app_sink_pull_sample(GST_APP_SINK(m_sink));
+        sampleRaw = gst_app_sink_try_pull_sample(GST_APP_SINK(m_sink), 100 * GST_MSECOND);
         if (sampleRaw) {
             break;
         }
 
-        // Stream ended or pipeline error. Retrieve message from bus.
+        if (gst_app_sink_is_eos(GST_APP_SINK(m_sink))) {
+            m_reachedEof = true;
+            return false;
+        }
+
+        // Stream ended, window closed, or pipeline error. Retrieve message from bus.
+        bool busErrorOrEos = false;
         GstBus* bus = gst_element_get_bus(m_pipeline.get());
         if (bus) {
-            GstMessage* msg
-                = gst_bus_pop_filtered(bus, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR));
+            GstMessage* msg = gst_bus_pop_filtered(
+                bus, static_cast<GstMessageType>(GST_MESSAGE_EOS | GST_MESSAGE_ERROR | GST_MESSAGE_ELEMENT));
             if (msg) {
                 if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_ERROR) {
                     GError* err = nullptr;
                     gchar* debug = nullptr;
                     gst_message_parse_error(msg, &err, &debug);
-                    LOG(ERROR) << "GStreamer: Pipeline error: " << (err ? err->message : "unknown") << " | "
-                               << (debug ? debug : "");
+                    LOG(INFO) << "GStreamer: Pipeline notification or window closed: "
+                              << (err ? err->message : "unknown")
+                              << (debug ? std::string(" (debug: ") + debug + ")" : "");
                     if (err)
                         g_error_free(err);
                     g_free(debug);
+                    busErrorOrEos = true;
                 } else if (GST_MESSAGE_TYPE(msg) == GST_MESSAGE_EOS) {
                     VLOG(1) << "GStreamer: Pipeline reached End-Of-Stream.";
+                    busErrorOrEos = true;
                 }
                 gst_message_unref(msg);
             }
             gst_object_unref(bus);
+        }
+
+        if (busErrorOrEos) {
+            m_reachedEof = true;
+            return false;
+        }
+
+        GstState current_state = GST_STATE_NULL;
+        GstState pending_state = GST_STATE_NULL;
+        GstStateChangeReturn state_ret = gst_element_get_state(m_pipeline.get(), &current_state, &pending_state, 0);
+        if (state_ret == GST_STATE_CHANGE_FAILURE || current_state == GST_STATE_NULL) {
+            m_reachedEof = true;
+            return false;
         }
 
         bool isLive = (m_duration <= 0.0);
