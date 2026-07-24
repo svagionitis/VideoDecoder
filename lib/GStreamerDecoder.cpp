@@ -336,9 +336,9 @@ bool GStreamerDecoder::initializeInternal(
         m_duration = 0.0;
     }
 
-    // Attempt to discover the codec name by searching for the decoder element in the bin
+    // Attempt to discover the codec name by recursively searching for the decoder element in the bin
     m_codecName = "unknown";
-    GstIterator* it = gst_bin_iterate_elements(GST_BIN(m_pipeline.get()));
+    GstIterator* it = gst_bin_iterate_recurse(GST_BIN(m_pipeline.get()));
     if (it) {
         GValue val = G_VALUE_INIT;
         gboolean done = FALSE;
@@ -346,17 +346,74 @@ bool GStreamerDecoder::initializeInternal(
             switch (gst_iterator_next(it, &val)) {
             case GST_ITERATOR_OK: {
                 GstElement* element = GST_ELEMENT(g_value_get_object(&val));
-                gchar* name = gst_element_get_name(element);
-                if (name) {
-                    std::string nameStr(name);
-                    g_free(name);
+                if (element) {
+                    GstElementFactory* factory = gst_element_get_factory(element);
+                    if (factory) {
+                        const gchar* klass = gst_element_factory_get_klass(factory);
+                        const gchar* fname = gst_plugin_feature_get_name(GST_PLUGIN_FEATURE(factory));
+                        std::string klassStr(klass ? klass : "");
+                        std::string fnameStr(fname ? fname : "");
 
-                    // Decoder elements usually end with "dec" or contain "dec" in their factory/name
-                    // e.g. avdec_h264, vp9dec, jpegdec, but not decodebin / uridecodebin / appsink
-                    if (nameStr.find("dec") != std::string::npos && nameStr.find("decodebin") == std::string::npos
-                        && nameStr.find("uridecodebin") == std::string::npos) {
-                        m_codecName = nameStr;
-                        done = TRUE; // break early
+                        if (klassStr.find("Decoder") != std::string::npos && klassStr.find("Video") != std::string::npos
+                            && fnameStr.find("decodebin") == std::string::npos
+                            && fnameStr.find("uridecodebin") == std::string::npos) {
+                            std::string nameLower = fnameStr;
+                            std::transform(nameLower.begin(), nameLower.end(), nameLower.begin(), ::tolower);
+                            if (nameLower.find("h264") != std::string::npos
+                                || nameLower.find("264") != std::string::npos) {
+                                m_codecName = "h264";
+                            } else if (nameLower.find("h265") != std::string::npos
+                                || nameLower.find("hevc") != std::string::npos
+                                || nameLower.find("265") != std::string::npos) {
+                                m_codecName = "h265";
+                            } else if (nameLower.find("vp8") != std::string::npos) {
+                                m_codecName = "vp8";
+                            } else if (nameLower.find("vp9") != std::string::npos) {
+                                m_codecName = "vp9";
+                            } else if (nameLower.find("av1") != std::string::npos) {
+                                m_codecName = "av1";
+                            } else if (nameLower.find("mpeg4") != std::string::npos) {
+                                m_codecName = "mpeg4";
+                            } else if (nameLower.find("mpeg2") != std::string::npos) {
+                                m_codecName = "mpeg2";
+                            } else {
+                                m_codecName = fnameStr;
+                            }
+                            done = TRUE;
+                        }
+                    }
+
+                    // Fallback to checking sink pad caps media type if factory didn't break early
+                    if (!done) {
+                        GstPad* sinkpad = gst_element_get_static_pad(element, "sink");
+                        if (sinkpad) {
+                            GstCaps* caps = gst_pad_get_current_caps(sinkpad);
+                            if (caps) {
+                                GstStructure* s = gst_caps_get_structure(caps, 0);
+                                if (s) {
+                                    const gchar* sname = gst_structure_get_name(s);
+                                    if (sname) {
+                                        std::string snameStr(sname);
+                                        if (snameStr.find("h264") != std::string::npos) {
+                                            m_codecName = "h264";
+                                            done = TRUE;
+                                        } else if (snameStr.find("h265") != std::string::npos
+                                            || snameStr.find("hevc") != std::string::npos) {
+                                            m_codecName = "h265";
+                                            done = TRUE;
+                                        } else if (snameStr.find("vp8") != std::string::npos) {
+                                            m_codecName = "vp8";
+                                            done = TRUE;
+                                        } else if (snameStr.find("vp9") != std::string::npos) {
+                                            m_codecName = "vp9";
+                                            done = TRUE;
+                                        }
+                                    }
+                                }
+                                gst_caps_unref(caps);
+                            }
+                            gst_object_unref(sinkpad);
+                        }
                     }
                 }
                 g_value_reset(&val);
